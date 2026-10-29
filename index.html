@@ -161,7 +161,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.13 · 29.10.2026";
+const VERSION = "v1.14 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -337,8 +337,14 @@ function onOrient(e) {
     -Math.cos(a) * Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g),
     -Math.sin(a) * Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g),
     -Math.cos(b) * Math.cos(g)];
-  const k = 0.5 + stab / 100 * 0.47; // low-pass vs. hand shake: more stable = more lag
-  smooth = smooth ? smooth.map((s, i) => s * k + v[i] * (1 - k)) : v;
+  // Adaptive low-pass: heavy smoothing for small hand jitter, almost none while turning,
+  // so the marker is steady when holding still but doesn't lag behind when aiming.
+  if (smooth) {
+    const n0 = Math.hypot(...smooth);
+    const d = deg(Math.acos(Math.min(1, smooth.reduce((s, c, i) => s + c * v[i], 0) / n0))); // degrees moved
+    const w = Math.min(1, (1 - (0.5 + stab / 100 * 0.47)) + d / 4);
+    smooth = smooth.map((s, i) => s * (1 - w) + v[i] * w);
+  } else smooth = v;
   const [x, y, z] = smooth, n = Math.hypot(x, y, z);
   view = {az: (deg(Math.atan2(x, y)) + 360) % 360, alt: deg(Math.asin(z / n))};
 }
