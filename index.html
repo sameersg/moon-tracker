@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0b1e">
+<title>Moon Tracker – Karwa Chauth</title>
+<script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b1e;color:#fff;font-family:system-ui,sans-serif;overflow:hidden}
+  video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}
+  #moon{position:fixed;left:0;top:0;font-size:64px;line-height:1;transform:translate(-50%,-50%);
+        filter:drop-shadow(0 0 24px #ffe9a8);display:none;pointer-events:none}
+  #ring{position:fixed;width:120px;height:120px;border:2px dashed #ffe9a8;border-radius:50%;
+        transform:translate(-50%,-50%);display:none;pointer-events:none}
+  #arrow{position:fixed;font-size:44px;color:#ffe9a8;transform:translate(-50%,-50%);display:none;
+         pointer-events:none;text-shadow:0 0 10px #000}
+  #cross{position:fixed;left:50%;top:50%;width:24px;height:24px;margin:-12px;border:1px solid #fff8;border-radius:50%}
+  #hud{position:fixed;left:0;right:0;bottom:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+       background:linear-gradient(transparent,#000c 30%);font-size:15px;line-height:1.5}
+  #hint{font-size:20px;font-weight:600;margin-bottom:6px}
+  #perm{color:#ffb4a8;font-size:13px}
+  #start{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+         gap:16px;text-align:center;padding:16px;background:radial-gradient(#23234a,#0b0b1e)}
+  #start h1{margin:0;font-size:28px}
+  button{font-size:18px;padding:14px 28px;border:0;border-radius:999px;background:#ffe9a8;color:#222;font-weight:700}
+  label{display:flex;gap:8px;align-items:center;font-size:13px;opacity:.8}
+  input[type=range]{flex:1}
+</style>
+</head>
+<body>
+<video id="cam" autoplay playsinline muted></video>
+<div id="cross"></div>
+<div id="ring"></div>
+<div id="moon">🌕</div>
+<div id="arrow">➤</div>
+<div id="hud">
+  <div id="hint">…</div>
+  <div id="info"></div>
+  <div id="perm"></div>
+  <label>Compass correction <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
+</div>
+<div id="start">
+  <div style="font-size:72px">🌕</div>
+  <h1>Moon Tracker 🪔</h1>
+  <p>Karwa Chauth – find the moon to break your fast.<br>Point your phone at the sky.</p>
+  <p style="font-size:14px;opacity:.75">On the next step your phone will ask for access to<br>📍 Location · 📷 Camera · 🧭 Motion &amp; orientation</p>
+  <button id="go">Find the moon</button>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const deg = r => r * 180 / Math.PI, rad = d => d * Math.PI / 180;
+const wrap = a => ((a + 540) % 360) - 180; // -> [-180,180)
+const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+const compass = az => dirs[Math.round(az / 45) % 8];
+const fmt = d => d ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '–';
+
+let pos = null, view = null, smooth = null, hasSensor = false;
+const denied = new Set();
+const showPerm = () => $('perm').textContent = denied.size
+  ? `No access to: ${[...denied].join(', ')} – allow it in your browser/site settings and reload.` : '';
+
+let offset = 0;
+try { offset = +(localStorage.getItem('moonOffset') || 0) } catch {}
+$('offset').value = offset; $('offv').textContent = offset + '°';
+$('offset').oninput = e => { offset = +e.target.value; $('offv').textContent = offset + '°';
+  try { localStorage.setItem('moonOffset', offset) } catch {} };
+
+$('go').onclick = () => {
+  $('start').style.display = 'none';
+  // All three prompts are started synchronously inside the tap, which iOS requires.
+  const motion = window.DeviceOrientationEvent?.requestPermission
+    ? DeviceOrientationEvent.requestPermission().catch(() => 'denied') : Promise.resolve('granted');
+  motion.then(s => {
+    if (s !== 'granted') { denied.add('motion sensors'); showPerm(); return; }
+    addEventListener('deviceorientationabsolute', onOrient);
+    addEventListener('deviceorientation', onOrient);
+  });
+  navigator.geolocation.watchPosition(p => pos = p.coords,
+    () => { denied.add('location'); showPerm() }, {enableHighAccuracy: true});
+  navigator.mediaDevices?.getUserMedia({video: {facingMode: 'environment'}})
+    .then(s => $('cam').srcObject = s)
+    .catch(() => { denied.add('camera'); showPerm() });
+  requestAnimationFrame(loop);
+};
+
+function onOrient(e) {
+  if (e.beta == null) return;
+  let alpha;
+  if (e.webkitCompassHeading != null) alpha = 360 - e.webkitCompassHeading; // iOS
+  else if (e.absolute || e.type === 'deviceorientationabsolute') alpha = e.alpha;
+  else return; // relative alpha has no north reference
+  hasSensor = true;
+  // Back-camera direction in world frame (x=east, y=north, z=up), R = Rz(a)·Rx(b)·Ry(g)
+  const a = rad(alpha), b = rad(e.beta), g = rad(e.gamma);
+  const v = [
+    -Math.cos(a) * Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g),
+    -Math.sin(a) * Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g),
+    -Math.cos(b) * Math.cos(g)];
+  smooth = smooth ? smooth.map((s, i) => s * 0.8 + v[i] * 0.2) : v; // low-pass vs. jitter
+  const [x, y, z] = smooth, n = Math.hypot(x, y, z);
+  view = {az: (deg(Math.atan2(x, y)) + 360) % 360, alt: deg(Math.asin(z / n))};
+}
+
+function loop() {
+  requestAnimationFrame(loop);
+  if (!pos) { $('hint').textContent = denied.has('location') ? 'Location needed to find the moon' : 'Finding your location…'; return; }
+  const now = new Date();
+  const m = SunCalc.getMoonPosition(now, pos.latitude, pos.longitude);
+  const az = (deg(m.azimuth) + 180) % 360, alt = deg(m.altitude); // suncalc azimuth is from south
+  const ill = SunCalc.getMoonIllumination(now);
+  const t = SunCalc.getMoonTimes(now, pos.latitude, pos.longitude);
+  const phase = ['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
+  $('moon').textContent = phase;
+  $('info').innerHTML =
+    `Direction <b>${az.toFixed(0)}° ${compass(az)}</b> · Altitude <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% lit<br>` +
+    `Moonrise <b>${fmt(t.rise)}</b> · Moonset ${fmt(t.set)}`;
+
+  if (!hasSensor || !view) {
+    $('moon').style.display = $('ring').style.display = $('arrow').style.display = 'none';
+    $('hint').textContent = alt < 0 ? `Moon is still below the horizon – rises at ${fmt(t.rise)}`
+      : `Look ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° above the horizon`;
+    return;
+  }
+  const W = innerWidth, H = innerHeight;
+  const vfov = 60, hfov = vfov * W / H; // ponytail: fixed FOV guess, portrait only, roll ignored
+  const dAz = wrap(az - view.az - offset), dAlt = alt - view.alt;
+  const sx = W / 2 + dAz / hfov * W, sy = H / 2 - dAlt / vfov * H;
+  const onScreen = Math.abs(dAz) < hfov / 2 && Math.abs(dAlt) < vfov / 2;
+
+  $('moon').style.display = $('ring').style.display = onScreen ? 'block' : 'none';
+  $('arrow').style.display = onScreen ? 'none' : 'block';
+  if (onScreen) {
+    for (const el of [$('moon'), $('ring')]) { el.style.left = sx + 'px'; el.style.top = sy + 'px'; }
+    $('hint').textContent = alt < 0 ? 'The moon is here – but still below the horizon 🌍' : 'There is the moon! 🌙 Happy Karwa Chauth';
+  } else {
+    const ang = Math.atan2(-dAlt, dAz); // screen angle toward moon
+    const r = Math.min(W, H) * 0.38;
+    $('arrow').style.left = W / 2 + Math.cos(ang) * r + 'px';
+    $('arrow').style.top = H / 2 + Math.sin(ang) * r + 'px';
+    $('arrow').style.transform = `translate(-50%,-50%) rotate(${ang}rad)`;
+    const lr = Math.abs(dAz) > 10 ? (dAz > 0 ? 'right' : 'left') : '';
+    const ud = Math.abs(dAlt) > 10 ? (dAlt > 0 ? 'up' : 'down') : '';
+    $('hint').textContent = 'Turn ' + [lr, ud].filter(Boolean).join(' and ') +
+      (alt < 0 ? ` (below horizon, rises at ${fmt(t.rise)})` : '');
+  }
+}
+</script>
+</body>
+</html>
