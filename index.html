@@ -40,6 +40,10 @@
   .credit{display:block;font-size:12px;color:#ffe9a8;opacity:.7;text-decoration:none;margin-top:6px}
   #share{position:fixed; /* top-left, mirrors the ? button */top:calc(12px + env(safe-area-inset-top));left:12px;z-index:20;height:40px;padding:0 16px;
          display:flex;align-items:center;gap:6px;font-size:15px;box-shadow:0 2px 12px #0008}
+  #story{position:fixed;top:calc(12px + env(safe-area-inset-top));left:136px;z-index:20;height:40px;padding:0 16px;
+         display:flex;align-items:center;gap:6px;font-size:15px;box-shadow:0 2px 12px #0008;
+         background:linear-gradient(45deg,#f9a63a,#e1306c 50%,#833ab4);color:#fff}
+  html[lang=de] #story{left:124px}
   #helpBtn{position:fixed;top:calc(12px + env(safe-area-inset-top));right:12px;z-index:20;width:40px;height:40px;
            padding:0;border-radius:50%;font-size:20px;background:#000a;color:#ffe9a8;border:1px solid #ffe9a855}
   dialog{width:calc(100% - 32px);max-width:520px;max-height:85vh;overflow-y:auto;background:#15152e;color:#fff;
@@ -86,6 +90,7 @@
   </div>
 </div>
 <button id="share"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> <span data-de="Teilen">Share</span></button>
+<button id="story"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="currentColor"/></svg> <span>Story</span></button>
 <button id="helpBtn" aria-label="Help / Hilfe">?</button>
 <dialog id="help">
   <h2><span class="en">Help</span><span class="de">Hilfe</span></h2>
@@ -163,7 +168,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.18 · 29.10.2026";
+const VERSION = "v1.19 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -323,6 +328,46 @@ $('share').onclick = () => {
   if (navigator.share) navigator.share(data).catch(() => {});
   else navigator.clipboard?.writeText(`${shareText} ${location.href}`).then(() => $('share').querySelector('span').textContent = tr('Copied!', 'Kopiert!'));
 };
+// Story image (1080×1920, 9:16) for Instagram/TikTok. Pre-rendered so the tap can share
+// immediately; iOS only allows sharing right inside the tap.
+let storyFile = null, storyKey = '';
+function renderStory(info) {
+  const key = JSON.stringify(info);
+  if (key === storyKey) return;
+  storyKey = key;
+  const c = document.createElement('canvas'); c.width = 1080; c.height = 1920;
+  const g = c.getContext('2d');
+  const bg = g.createLinearGradient(0, 0, 0, 1920);
+  bg.addColorStop(0, '#05050f'); bg.addColorStop(0.6, '#1d1d44'); bg.addColorStop(1, '#4a2a5a');
+  g.fillStyle = bg; g.fillRect(0, 0, 1080, 1920);
+  for (let i = 0; i < 160; i++) { // stars
+    g.fillStyle = `rgba(255,255,255,${0.3 + Math.random() * 0.7})`;
+    g.beginPath(); g.arc(Math.random() * 1080, Math.random() * 1100, Math.random() * 2.5 + 0.5, 0, 7); g.fill();
+  }
+  const glow = g.createRadialGradient(540, 760, 120, 540, 760, 520);
+  glow.addColorStop(0, '#ffe9a866'); glow.addColorStop(1, '#ffe9a800');
+  g.fillStyle = glow; g.fillRect(0, 200, 1080, 1100);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = '380px system-ui'; g.fillText(info.phase, 540, 760);
+  g.fillStyle = '#ffe9a8'; g.font = 'bold 96px system-ui'; g.fillText('Karwa Chauth 🪔', 540, 250);
+  g.fillStyle = '#ffffffcc'; g.font = '48px system-ui';
+  g.fillText(new Date().toLocaleDateString(DE ? 'de-DE' : 'en-US', {weekday: 'long', day: 'numeric', month: 'long'}), 540, 345);
+  g.fillStyle = '#fff'; g.font = '56px system-ui'; g.fillText(info.label, 540, 1230);
+  g.fillStyle = '#ffe9a8'; g.font = 'bold 210px system-ui'; g.fillText(info.time, 540, 1410);
+  g.fillStyle = '#ffffffcc'; g.font = '46px system-ui'; g.fillText(info.sub, 540, 1580);
+  g.fillStyle = '#ffffffaa'; g.font = '40px system-ui'; g.fillText('🌙 ' + location.host, 540, 1690);
+  g.font = '32px system-ui'; g.fillText('Made by SG Studio', 540, 1750);
+  c.toBlob(b => storyFile = new File([b], 'karwa-chauth-moon.png', {type: 'image/png'}), 'image/png');
+}
+$('story').onclick = () => {
+  if (!storyFile) return;
+  if (navigator.canShare?.({files: [storyFile]})) navigator.share({files: [storyFile]}).catch(() => {});
+  else { // desktop: download instead
+    const a = document.createElement('a'); a.href = URL.createObjectURL(storyFile); a.download = storyFile.name; a.click();
+  }
+};
+renderStory({phase: '🌕', label: tr('Find the moon tonight', 'Finde heute den Mond'), time: '🌙', sub: tr('with Moon Tracker', 'mit Moon Tracker')});
+
 const until = d => { const m = Math.round((d - Date.now()) / 60000);
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min` };
 
@@ -391,6 +436,10 @@ function loop() {
     tr('. Find it with Moon Tracker:', '. Finde ihn mit Moon Tracker:');
   const phase =['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
   $('moon').textContent = phase;
+  renderStory({phase,
+    label: vis ? tr('Moon visible from', 'Mond sichtbar ab') : visible ? tr('The moon is up', 'Der Mond ist da') : tr('Moonrise', 'Mondaufgang'),
+    time: vis ? '~' + fmt(vis.t) : visible ? tr('Now', 'Jetzt') : fmt(t.rise),
+    sub: `${tr('Moonrise', 'Mondaufgang')} ${fmt(t.rise)} · ${tr('look', 'Richtung')} ${compass(vis ? vis.az : az)}`});
   $('info').innerHTML =
     `${tr('Direction', 'Richtung')} <b>${az.toFixed(0)}° ${compass(az)}</b> · ${tr('Altitude', 'Höhe')} <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% ${tr('lit', 'beleuchtet')}<br>` +
     `${tr('Moonrise', 'Mondaufgang')} <b>${fmt(t.rise)}</b> · ${tr('Moonset', 'Untergang')} ${fmt(t.set)}<br>` +
