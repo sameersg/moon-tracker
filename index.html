@@ -161,7 +161,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.15 · 29.10.2026";
+const VERSION = "v1.16 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -341,10 +341,10 @@ function onOrient(e) {
   // Only when they drift clearly apart (a real turn, not jitter) does the output switch to fast.
   const t = performance.now(), dt = Math.min(0.2, (t - (lastT || t - 16)) / 1000); lastT = t;
   const ema = (s, tau) => { const a = 1 - Math.exp(-dt / tau); return s ? s.map((c, i) => c * (1 - a) + v[i] * a) : v };
-  fast = ema(fast, 0.06);
+  fast = ema(fast, 0.12); // even while turning, glide rather than snap
   slow = ema(slow, 0.15 + stab / 100 * 0.65); // stabilization slider: 0.15 s … 0.8 s
   const apart = deg(Math.acos(Math.min(1, fast.reduce((s, c, i) => s + c * slow[i], 0) / Math.hypot(...fast) / Math.hypot(...slow))));
-  const m = Math.min(1, Math.max(0, (apart - 2) / 5)); // < 2° apart = jitter, > 7° = turning
+  const m = Math.min(1, Math.max(0, (apart - 2.5) / 7)); // < 2.5° apart = jitter, then ease in gradually
   smooth = slow = slow.map((c, i) => c * (1 - m) + fast[i] * m); // slow restarts from the output, so it never trails far behind after a turn
   const [x, y, z] = smooth, n = Math.hypot(x, y, z);
   view = {az: (deg(Math.atan2(x, y)) + 360) % 360, alt: deg(Math.asin(z / n))};
