@@ -57,7 +57,7 @@
     <div style="font-size:12px;opacity:.7" data-de="Nervige Abfragen? In Safari auf <b>aA</b> tippen → Website-Einstellungen → Kamera &amp; Standort auf <b>Erlauben</b>.">Tired of permission prompts? In Safari tap <b>aA</b> → Website Settings → set Camera &amp; Location to <b>Allow</b>.</div>
   </details>
   <div style="display:flex;justify-content:space-between;align-items:center">
-    <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
+    <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a> <span class="credit ver" style="display:inline"></span>
     <button id="share" style="font-size:13px;padding:6px 14px;margin-top:6px" data-de="Mondaufgang teilen">Share moonrise</button>
   </div>
 </div>
@@ -68,10 +68,13 @@
   <p style="font-size:14px;opacity:.75" data-de="Im nächsten Schritt fragt dein Handy nach Zugriff auf<br>📍 Standort · 📷 Kamera · 🧭 Bewegung &amp; Ausrichtung">On the next step your phone will ask for access to<br>📍 Location · 📷 Camera · 🧭 Motion &amp; orientation</p>
   <button id="go" data-de="Mond finden">Find the moon</button>
   <button id="goDark" style="background:none;color:#ffe9a8;border:1px solid #ffe9a8;font-size:15px;padding:10px 22px" data-de="Ohne Kamera">Without camera</button>
-  <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
+  <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a> <span class="credit ver" style="display:inline"></span>
 </div>
 <script>
+// Bump on every deploy so testers can tell which build they have
+const VERSION = "v1.7 · 29.10.2026";
 const $ = id => document.getElementById(id);
+document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
 const DE = /^de\b/i.test(navigator.language || '');
 const tr = (en, de) => DE ? de : en;
