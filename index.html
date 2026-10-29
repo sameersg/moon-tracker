@@ -161,7 +161,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.12 · 29.10.2026";
+const VERSION = "v1.13 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -357,6 +357,7 @@ function loop() {
   const peak = path.reduce((a, b) => b.alt > a.alt ? b : a);
   const vis = alt < obst && path.find(p => p.t > now && p.alt >= obst); // when it clears the rooftops
   const visible = alt >= obst;
+  const low = visible && alt < 5; // geometrically up, but at this height haze/houses/trees usually still hide it
   const ill = SunCalc.getMoonIllumination(now);
   const t = SunCalc.getMoonTimes(now, pos.latitude, pos.longitude);
   const visIn = vis && tr(`visible in ${until(vis.t)} (~${fmt(vis.t)})`, `sichtbar in ${until(vis.t)} (~${fmt(vis.t)})`);
@@ -370,7 +371,7 @@ function loop() {
     `${tr('Direction', 'Richtung')} <b>${az.toFixed(0)}° ${compass(az)}</b> · ${tr('Altitude', 'Höhe')} <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% ${tr('lit', 'beleuchtet')}<br>` +
     `${tr('Moonrise', 'Mondaufgang')} <b>${fmt(t.rise)}</b> · ${tr('Moonset', 'Untergang')} ${fmt(t.set)}<br>` +
     (vis ? `👁 ${tr('Visible above buildings', 'Sichtbar über den Dächern')} (${obst}°) ~<b>${fmt(vis.t)}</b> ${cloudAt(vis.t)}<br>`
-      : visible ? `👁 ${cloudAt(now)}<br>` : '') +
+      : visible ? `👁 ${low ? tr('Still very low on the horizon', 'Noch sehr tief am Horizont') : tr('Above the rooftops now', 'Jetzt über den Dächern')} ${cloudAt(now)}<br>` : '') +
     `${tr('Highest', 'Höchster Stand')} ~${fmt(peak.t)} ${tr('at', 'bei')} ${peak.alt.toFixed(0)}° ${compass(peak.az)}`;
 
   const W = innerWidth, H = innerHeight, sky = $('sky'), ctx = sky.getContext('2d'), dpr = devicePixelRatio;
@@ -438,6 +439,8 @@ function loop() {
     for (const el of [$('moon'), $('ring')]) { el.style.left = sx + 'px'; el.style.top = sy + 'px'; }
     $('hint').textContent = vis ? tr('Moon is here – ', 'Hier ist der Mond – ') + visIn
       : !visible ? tr('The moon is here – but hidden below the rooftops 🏠', 'Hier ist der Mond – aber hinter den Dächern 🏠')
+      : low ? tr(`The moon is here – only ${alt.toFixed(0)}° high, houses/trees may still hide it`,
+                 `Hier ist der Mond – erst ${alt.toFixed(0)}° hoch, Häuser/Bäume verdecken ihn evtl. noch`)
       : tr('There is the moon! 🌙 Happy Karwa Chauth', 'Da ist der Mond! 🌙 Frohes Karwa Chauth');
   } else {
     const ang = Math.atan2(-dAlt, dAz); // screen angle toward moon
@@ -445,8 +448,9 @@ function loop() {
     $('arrow').style.left = W / 2 + Math.cos(ang) * r + 'px';
     $('arrow').style.top = H / 2 + Math.sin(ang) * r + 'px';
     $('arrow').style.transform = `translate(-50%,-50%) rotate(${ang}rad)`;
-    const lr = Math.abs(dAz) > 10 ? (dAz > 0 ? tr('right', 'rechts') : tr('left', 'links')) : '';
-    const ud = Math.abs(dAlt) > 10 ? (dAlt > 0 ? tr('up', 'oben') : tr('down', 'unten')) : '';
+    // name the dominant direction even when both are small, so the hint never ends empty
+    const lr = Math.abs(dAz) > 10 || Math.abs(dAz) >= Math.abs(dAlt) ? (dAz > 0 ? tr('right', 'rechts') : tr('left', 'links')) : '';
+    const ud = Math.abs(dAlt) > 10 || Math.abs(dAlt) > Math.abs(dAz) ? (dAlt > 0 ? tr('up', 'oben') : tr('down', 'unten')) : '';
     $('hint').textContent = tr('Turn ', 'Dreh nach ') + [lr, ud].filter(Boolean).join(tr(' and ', ' und ')) +
       (vis ? ' · ' + visIn : '');
   }
