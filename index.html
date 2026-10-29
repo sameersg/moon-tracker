@@ -93,6 +93,15 @@
 <button id="share"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> <span data-de="Teilen">Share</span></button>
 <button id="story"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg> <span>Story</span></button>
 <button id="helpBtn" aria-label="Help / Hilfe">?</button>
+<dialog id="storyDlg" style="text-align:center">
+  <img id="storyImg" alt="" style="max-height:58vh;max-width:100%;border-radius:12px;display:block;margin:0 auto 12px">
+  <div style="display:flex;gap:8px;justify-content:center">
+    <button id="storyShare" class="small" style="font-size:15px;padding:10px 18px;background:linear-gradient(45deg,#f9a63a,#e1306c 50%,#833ab4);color:#fff" data-de="Teilen">Share</button>
+    <button id="storySave" class="small" style="font-size:15px;padding:10px 18px" data-de="Speichern">Save</button>
+  </div>
+  <p class="ios" style="font-size:12px;opacity:.7;margin:10px 0 0" data-de="iPhone: „Speichern“ öffnet das Teilen-Menü – dort „Bild sichern“ wählen. Oder Bild gedrückt halten → „Zu Fotos hinzufügen“.">iPhone: “Save” opens the share menu – pick “Save Image”. Or long-press the picture → “Add to Photos”.</p>
+  <form method="dialog" style="margin-top:10px"><button style="font-size:13px;padding:6px 16px;background:none;color:#ffe9a8;border:1px solid #ffe9a855" data-de="Schließen">Close</button></form>
+</dialog>
 <dialog id="help">
   <h2><span class="en">Help</span><span class="de">Hilfe</span></h2>
 
@@ -169,7 +178,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.21 · 29.10.2026";
+const VERSION = "v1.22 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -329,7 +338,7 @@ $('share').onclick = () => {
   if (navigator.share) navigator.share(data).catch(() => {});
   else navigator.clipboard?.writeText(`${shareText} ${location.href}`).then(() => $('share').querySelector('span').textContent = tr('Copied!', 'Kopiert!'));
 };
-// Story image (1080×1920, 9:16) for Instagram, TikTok, Snapchat, WhatsApp status. Pre-rendered so the tap can share
+// Story image (1080×1920, 9:16) for Instagram, TikTok, Snapchat, WhatsApp status or the gallery. Pre-rendered so the tap can share
 // immediately; iOS only allows sharing right inside the tap.
 let storyFile = null, storyKey = '';
 async function renderStory(info) {
@@ -382,23 +391,29 @@ async function renderStory(info) {
   g.fillText(new Date().toLocaleDateString(DE ? 'de-DE' : 'en-US', {weekday: 'long', day: 'numeric', month: 'long'}), 540, 305);
   const orn = y => { g.strokeStyle = '#e8c07a99'; g.lineWidth = 2; g.beginPath(); g.moveTo(330, y); g.lineTo(500, y); g.moveTo(580, y); g.lineTo(750, y); g.stroke(); sparkle(540, y, 12); };
   orn(1170);
-  g.fillStyle = '#fbeee0'; g.font = `italic 500 76px ${serif}`; g.fillText(info.label, 540, 1290);
+  g.fillStyle = '#fbeee0'; g.font = `italic 500 72px ${serif}`; g.fillText(info.label, 540, 1290);
   g.fillStyle = gold(1330, 1540); g.shadowColor = 'rgba(255,200,120,0.35)'; g.shadowBlur = 30;
   g.font = '600 210px "Playfair Display", Georgia, serif'; g.fillText(info.time, 540, 1500); g.shadowBlur = 0; // lining figures
-  g.letterSpacing = '6px'; g.fillStyle = '#f5e6d3dd'; g.font = `500 42px ${serif}`; g.fillText(info.sub.toUpperCase(), 546, 1615);
+  g.fillStyle = '#f5e6d3ee'; g.font = `italic 500 58px ${serif}`; g.fillText(info.sub, 540, 1615);
   orn(1685);
   g.letterSpacing = '4px'; g.fillStyle = '#ffffffb0'; g.font = `500 36px ${serif}`; g.fillText(location.host + '  ·  SG Studio', 542, 1750);
   g.letterSpacing = '0px';
   c.toBlob(b => storyFile = new File([b], 'karwa-chauth-moon.png', {type: 'image/png'}), 'image/png');
 }
+const canShareFile = () => navigator.canShare?.({files: [storyFile]});
 $('story').onclick = () => {
   if (!storyFile) return;
-  if (navigator.canShare?.({files: [storyFile]})) navigator.share({files: [storyFile]}).catch(() => {});
-  else { // desktop: download instead
-    const a = document.createElement('a'); a.href = URL.createObjectURL(storyFile); a.download = storyFile.name; a.click();
-  }
+  $('storyImg').src = URL.createObjectURL(storyFile);
+  $('storyDlg').showModal();
 };
-renderStory({frac: 1, waxing: true, label: tr('Find the moon tonight', 'Finde heute den Mond'), time: '🌙', sub: 'Moon Tracker'});
+$('storyShare').onclick = () => canShareFile()
+  ? navigator.share({files: [storyFile]}).catch(() => {}) : $('storySave').click();
+$('storySave').onclick = () => {
+  // iOS can't download straight into Photos; its share sheet has "Save Image" instead
+  if (document.body.classList.contains('ios') && canShareFile()) return navigator.share({files: [storyFile]}).catch(() => {});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(storyFile); a.download = storyFile.name; a.click();
+};
+renderStory({frac: 1, waxing: true, label: tr('Waiting for my moon', 'Ich warte auf meinen Mond'), time: '🌙', sub: tr('Fasting with love ♡', 'Mit Liebe gefastet ♡')});
 
 const until = d => { const m = Math.round((d - Date.now()) / 60000);
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min` };
@@ -469,9 +484,10 @@ function loop() {
   const phase =['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
   $('moon').textContent = phase;
   renderStory({frac: +ill.fraction.toFixed(2), waxing: ill.phase < 0.5,
-    label: vis ? tr('Moon visible from approx.', 'Mond sichtbar ab ca.') : visible ? tr('The moon is up', 'Der Mond ist da') : tr('Moonrise', 'Mondaufgang'),
-    time: vis ? fmt(vis.t) : visible ? tr('Now', 'Jetzt') : fmt(t.rise),
-    sub: `${tr('Moonrise', 'Mondaufgang')} ${fmt(t.rise)} · ${tr('look', 'Richtung')} ${compass(vis ? vis.az : az)}`});
+    // sweet, personal wording: waiting for "my moon" before, "I saw my moon" once it's up
+    label: visible ? tr('I saw my moon', 'Ich habe meinen Mond gesehen') : tr('Waiting for my moon', 'Ich warte auf meinen Mond'),
+    time: visible ? fmt(now) : fmt(vis ? vis.t : t.rise),
+    sub: visible ? tr('Fasted for you, broken with love ♡', 'Für dich gefastet, mit Liebe gebrochen ♡') : tr('Fasting with love ♡', 'Mit Liebe gefastet ♡')});
   $('info').innerHTML =
     `${tr('Direction', 'Richtung')} <b>${az.toFixed(0)}° ${compass(az)}</b> · ${tr('Altitude', 'Höhe')} <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% ${tr('lit', 'beleuchtet')}<br>` +
     `${tr('Moonrise', 'Mondaufgang')} <b>${fmt(t.rise)}</b> · ${tr('Moonset', 'Untergang')} ${fmt(t.set)}<br>` +
