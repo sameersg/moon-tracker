@@ -8,6 +8,7 @@
 <meta property="og:title" content="Moon Tracker – Karwa Chauth 🌙">
 <title>Moon Tracker – Karwa Chauth</title>
 <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Playfair+Display:wght@600&display=swap">
 <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments) };</script>
 <script defer src="/_vercel/insights/script.js" data-endpoint="/_vercel/insights"></script>
 <style>
@@ -168,7 +169,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.19 · 29.10.2026";
+const VERSION = "v1.20 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -331,32 +332,63 @@ $('share').onclick = () => {
 // Story image (1080×1920, 9:16) for Instagram/TikTok. Pre-rendered so the tap can share
 // immediately; iOS only allows sharing right inside the tap.
 let storyFile = null, storyKey = '';
-function renderStory(info) {
+async function renderStory(info) {
   const key = JSON.stringify(info);
   if (key === storyKey) return;
   storyKey = key;
-  const c = document.createElement('canvas'); c.width = 1080; c.height = 1920;
-  const g = c.getContext('2d');
-  const bg = g.createLinearGradient(0, 0, 0, 1920);
-  bg.addColorStop(0, '#05050f'); bg.addColorStop(0.6, '#1d1d44'); bg.addColorStop(1, '#4a2a5a');
-  g.fillStyle = bg; g.fillRect(0, 0, 1080, 1920);
-  for (let i = 0; i < 160; i++) { // stars
-    g.fillStyle = `rgba(255,255,255,${0.3 + Math.random() * 0.7})`;
-    g.beginPath(); g.arc(Math.random() * 1080, Math.random() * 1100, Math.random() * 2.5 + 0.5, 0, 7); g.fill();
+  await Promise.all(['500 60px Cormorant Garamond', 'italic 500 60px Cormorant Garamond', '700 60px Cormorant Garamond', '600 60px Playfair Display']
+    .map(f => document.fonts.load(f).catch(() => {})));
+  const W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'), serif = '"Cormorant Garamond", Georgia, serif';
+  // Night sky melting into plum and rose
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#07061a'); bg.addColorStop(0.45, '#1b1240'); bg.addColorStop(0.75, '#4a1d4f'); bg.addColorStop(1, '#a24a6a');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 220; i++) { // stars, denser at the top
+    const y = Math.pow(Math.random(), 1.6) * H * 0.75;
+    g.fillStyle = `rgba(255,244,220,${0.25 + Math.random() * 0.6})`;
+    g.beginPath(); g.arc(Math.random() * W, y, Math.random() * 2 + 0.4, 0, 7); g.fill();
   }
-  const glow = g.createRadialGradient(540, 760, 120, 540, 760, 520);
-  glow.addColorStop(0, '#ffe9a866'); glow.addColorStop(1, '#ffe9a800');
-  g.fillStyle = glow; g.fillRect(0, 200, 1080, 1100);
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = '380px system-ui'; g.fillText(info.phase, 540, 760);
-  g.fillStyle = '#ffe9a8'; g.font = 'bold 96px system-ui'; g.fillText('Karwa Chauth 🪔', 540, 250);
-  g.fillStyle = '#ffffffcc'; g.font = '48px system-ui';
-  g.fillText(new Date().toLocaleDateString(DE ? 'de-DE' : 'en-US', {weekday: 'long', day: 'numeric', month: 'long'}), 540, 345);
-  g.fillStyle = '#fff'; g.font = '56px system-ui'; g.fillText(info.label, 540, 1230);
-  g.fillStyle = '#ffe9a8'; g.font = 'bold 210px system-ui'; g.fillText(info.time, 540, 1410);
-  g.fillStyle = '#ffffffcc'; g.font = '46px system-ui'; g.fillText(info.sub, 540, 1580);
-  g.fillStyle = '#ffffffaa'; g.font = '40px system-ui'; g.fillText('🌙 ' + location.host, 540, 1690);
-  g.font = '32px system-ui'; g.fillText('Made by SG Studio', 540, 1750);
+  const sparkle = (x, y, r) => { // 4-point twinkle
+    g.save(); g.translate(x, y); g.fillStyle = '#ffe7b0'; g.shadowColor = '#ffd27a'; g.shadowBlur = 18;
+    g.beginPath(); g.moveTo(0, -r); g.quadraticCurveTo(0, 0, r, 0); g.quadraticCurveTo(0, 0, 0, r);
+    g.quadraticCurveTo(0, 0, -r, 0); g.quadraticCurveTo(0, 0, 0, -r); g.fill(); g.restore();
+  };
+  [[190, 520, 22], [880, 430, 16], [930, 980, 26], [150, 1040, 14], [760, 260, 12]].forEach(a => sparkle(...a));
+  // Moon: soft halo, cream-gold disc, faint maria, tonight's real phase shadow
+  const mx = 540, my = 760, r = 230;
+  const halo = g.createRadialGradient(mx, my, r * 0.9, mx, my, r * 2.6);
+  halo.addColorStop(0, 'rgba(255,226,160,0.45)'); halo.addColorStop(1, 'rgba(255,226,160,0)');
+  g.fillStyle = halo; g.fillRect(0, my - r * 3, W, r * 6);
+  g.save(); g.beginPath(); g.arc(mx, my, r, 0, 7); g.clip();
+  const disc = g.createRadialGradient(mx - 60, my - 70, 20, mx, my, r);
+  disc.addColorStop(0, '#fffaf0'); disc.addColorStop(0.6, '#f6e3b8'); disc.addColorStop(1, '#d9b47e');
+  g.fillStyle = disc; g.fillRect(mx - r, my - r, 2 * r, 2 * r);
+  g.fillStyle = 'rgba(170,130,80,0.10)'; g.filter = 'blur(8px)'; // soft maria, not cartoon craters
+  [[-70, -40, 60], [40, 60, 75], [80, -80, 40], [-30, 110, 35], [-110, 50, 30]].forEach(([dx, dy, cr]) => { g.beginPath(); g.arc(mx + dx, my + dy, cr, 0, 7); g.fill(); });
+  g.filter = 'none';
+  const f = info.frac, lit = info.waxing ? 1 : -1; // northern sky: waxing lit on the right
+  g.fillStyle = 'rgba(12,8,36,0.88)';
+  const darkHalf = () => g.rect(mx, my - r, -lit * r, 2 * r);
+  const term = () => g.ellipse(mx, my, Math.abs(2 * f - 1) * r, r, 0, 0, 7); // terminator
+  if (f < 0.5) { g.beginPath(); darkHalf(); term(); g.fill(); } // crescent: dark half + ellipse
+  else { g.beginPath(); darkHalf(); g.clip(); g.beginPath(); darkHalf(); term(); g.fill('evenodd'); } // gibbous: dark half − ellipse
+  g.restore();
+  // Typography
+  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  const gold = (y0, y1) => { const gr = g.createLinearGradient(0, y0, 0, y1); gr.addColorStop(0, '#fff1c9'); gr.addColorStop(0.5, '#f2c879'); gr.addColorStop(1, '#c9944a'); return gr; };
+  g.letterSpacing = '18px'; g.fillStyle = gold(150, 230); g.font = `600 64px ${serif}`; g.fillText('KARWA CHAUTH', 549, 230);
+  g.letterSpacing = '0px'; g.fillStyle = '#f5e6d3cc'; g.font = `italic 500 50px ${serif}`;
+  g.fillText(new Date().toLocaleDateString(DE ? 'de-DE' : 'en-US', {weekday: 'long', day: 'numeric', month: 'long'}), 540, 305);
+  const orn = y => { g.strokeStyle = '#e8c07a99'; g.lineWidth = 2; g.beginPath(); g.moveTo(330, y); g.lineTo(500, y); g.moveTo(580, y); g.lineTo(750, y); g.stroke(); sparkle(540, y, 12); };
+  orn(1170);
+  g.fillStyle = '#fbeee0'; g.font = `italic 500 76px ${serif}`; g.fillText(info.label, 540, 1290);
+  g.fillStyle = gold(1330, 1540); g.shadowColor = 'rgba(255,200,120,0.35)'; g.shadowBlur = 30;
+  g.font = '600 210px "Playfair Display", Georgia, serif'; g.fillText(info.time, 540, 1500); g.shadowBlur = 0; // lining figures
+  g.letterSpacing = '6px'; g.fillStyle = '#f5e6d3dd'; g.font = `500 42px ${serif}`; g.fillText(info.sub.toUpperCase(), 546, 1615);
+  orn(1685);
+  g.letterSpacing = '4px'; g.fillStyle = '#ffffffb0'; g.font = `500 36px ${serif}`; g.fillText(location.host + '  ·  SG Studio', 542, 1750);
+  g.letterSpacing = '0px';
   c.toBlob(b => storyFile = new File([b], 'karwa-chauth-moon.png', {type: 'image/png'}), 'image/png');
 }
 $('story').onclick = () => {
@@ -366,7 +398,7 @@ $('story').onclick = () => {
     const a = document.createElement('a'); a.href = URL.createObjectURL(storyFile); a.download = storyFile.name; a.click();
   }
 };
-renderStory({phase: '🌕', label: tr('Find the moon tonight', 'Finde heute den Mond'), time: '🌙', sub: tr('with Moon Tracker', 'mit Moon Tracker')});
+renderStory({frac: 1, waxing: true, label: tr('Find the moon tonight', 'Finde heute den Mond'), time: '🌙', sub: 'Moon Tracker'});
 
 const until = d => { const m = Math.round((d - Date.now()) / 60000);
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min` };
@@ -436,9 +468,9 @@ function loop() {
     tr('. Find it with Moon Tracker:', '. Finde ihn mit Moon Tracker:');
   const phase =['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
   $('moon').textContent = phase;
-  renderStory({phase,
-    label: vis ? tr('Moon visible from', 'Mond sichtbar ab') : visible ? tr('The moon is up', 'Der Mond ist da') : tr('Moonrise', 'Mondaufgang'),
-    time: vis ? '~' + fmt(vis.t) : visible ? tr('Now', 'Jetzt') : fmt(t.rise),
+  renderStory({frac: +ill.fraction.toFixed(2), waxing: ill.phase < 0.5,
+    label: vis ? tr('Moon visible from approx.', 'Mond sichtbar ab ca.') : visible ? tr('The moon is up', 'Der Mond ist da') : tr('Moonrise', 'Mondaufgang'),
+    time: vis ? fmt(vis.t) : visible ? tr('Now', 'Jetzt') : fmt(t.rise),
     sub: `${tr('Moonrise', 'Mondaufgang')} ${fmt(t.rise)} · ${tr('look', 'Richtung')} ${compass(vis ? vis.az : az)}`});
   $('info').innerHTML =
     `${tr('Direction', 'Richtung')} <b>${az.toFixed(0)}° ${compass(az)}</b> · ${tr('Altitude', 'Höhe')} <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% ${tr('lit', 'beleuchtet')}<br>` +
