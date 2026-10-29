@@ -27,6 +27,9 @@
   button{font-size:18px;padding:14px 28px;border:0;border-radius:999px;background:#ffe9a8;color:#222;font-weight:700}
   label{display:flex;gap:8px;align-items:center;font-size:13px;opacity:.8}
   input[type=range]{flex:1}
+  summary{font-size:13px;opacity:.8;margin:4px 0}
+  body:not(.cam) #cam{display:none}
+  body:not(.cam){background:radial-gradient(ellipse at 50% 120%,#1d1d44,#05050f 70%)}
   .credit{display:block;font-size:12px;color:#ffe9a8;opacity:.7;text-decoration:none;margin-top:6px}
 </style>
 </head>
@@ -41,7 +44,14 @@
   <div id="hint">…</div>
   <div id="info"></div>
   <div id="perm"></div>
-  <label>Compass correction <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
+  <details>
+    <summary>Settings</summary>
+    <label><input id="camOn" type="checkbox"> Camera view (off = dark sky)</label>
+    <label>Stabilization <input id="stab" type="range" min="0" max="100" value="80"></label>
+    <label>Compass correction <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
+    <button id="locate" style="font-size:13px;padding:6px 14px;margin:6px 0">Update location</button>
+    <div style="font-size:12px;opacity:.7">Tired of permission prompts? In Safari tap <b>aA</b> → Website Settings → set Camera &amp; Location to <b>Allow</b>.</div>
+  </details>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
     <button id="share" style="font-size:13px;padding:6px 14px;margin-top:6px">Share moonrise</button>
@@ -53,6 +63,7 @@
   <p>Karwa Chauth – find the moon to break your fast.<br>Point your phone at the sky.</p>
   <p style="font-size:14px;opacity:.75">On the next step your phone will ask for access to<br>📍 Location · 📷 Camera · 🧭 Motion &amp; orientation</p>
   <button id="go">Find the moon</button>
+  <button id="goDark" style="background:none;color:#ffe9a8;border:1px solid #ffe9a8;font-size:15px;padding:10px 22px">Without camera</button>
   <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
 </div>
 <script>
@@ -72,13 +83,42 @@ const denied = new Set();
 const showPerm = () => $('perm').textContent = denied.size
   ? `No access to: ${[...denied].join(', ')} – allow it in your browser/site settings and reload.` : '';
 
-let offset = 0;
-try { offset = +(localStorage.getItem('moonOffset') || 0) } catch {}
-$('offset').value = offset; $('offv').textContent = offset + '°';
-$('offset').oninput = e => { offset = +e.target.value; $('offv').textContent = offset + '°';
-  try { localStorage.setItem('moonOffset', offset) } catch {} };
+// Settings survive reloads (per device)
+const get = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } };
+const set = (k, v) => { try { localStorage.setItem(k, v) } catch {} };
 
-$('go').onclick = () => {
+let offset = +get('moonOffset', 0), stab = +get('moonStab', 80);
+$('offset').value = offset; $('offv').textContent = offset + '°';
+$('offset').oninput = e => { offset = +e.target.value; $('offv').textContent = offset + '°'; set('moonOffset', offset) };
+$('stab').value = stab;
+$('stab').oninput = e => { stab = +e.target.value; set('moonStab', stab) };
+
+$('camOn').checked = get('moonCam', '1') === '1';
+$('camOn').onchange = e => { set('moonCam', e.target.checked ? '1' : '0'); setCam(e.target.checked) };
+function setCam(on) {
+  document.body.classList.toggle('cam', on);
+  const old = $('cam').srcObject;
+  if (!on) { old?.getTracks().forEach(t => t.stop()); $('cam').srcObject = null; return; }
+  if (old) return;
+  navigator.mediaDevices?.getUserMedia({video: {facingMode: 'environment'}})
+    .then(s => $('cam').srcObject = s)
+    .catch(() => { denied.add('camera'); showPerm(); document.body.classList.remove('cam') });
+}
+
+function locate() {
+  $('locate').textContent = 'Locating…';
+  navigator.geolocation.getCurrentPosition(p => {
+    pos = {latitude: p.coords.latitude, longitude: p.coords.longitude};
+    set('moonPos', JSON.stringify(pos)); pathAt = 0;
+    $('locate').textContent = 'Update location';
+  }, () => { denied.add('location'); showPerm(); $('locate').textContent = 'Update location' }, {enableHighAccuracy: true});
+}
+$('locate').onclick = locate;
+
+$('goDark').onclick = () => { $('camOn').checked = false; set('moonCam', '0'); start() };
+$('go').onclick = () => { $('camOn').checked = true; set('moonCam', '1'); start() };
+function start() {
+  set('moonStarted', '1');
   $('start').style.display = 'none';
   // All three prompts are started synchronously inside the tap, which iOS requires.
   const motion = window.DeviceOrientationEvent?.requestPermission
@@ -88,14 +128,15 @@ $('go').onclick = () => {
     addEventListener('deviceorientationabsolute', onOrient);
     addEventListener('deviceorientation', onOrient);
   });
-  navigator.geolocation.watchPosition(p => pos = p.coords,
-    () => { denied.add('location'); showPerm() }, {enableHighAccuracy: true});
-  navigator.mediaDevices?.getUserMedia({video: {facingMode: 'environment'}})
-    .then(s => $('cam').srcObject = s)
-    .catch(() => { denied.add('camera'); showPerm() });
+  // A cached location is accurate enough for the moon (km don't matter) and avoids the location prompt
+  try { pos = JSON.parse(get('moonPos')) } catch {}
+  if (!pos) locate();
+  setCam($('camOn').checked);
   keepAwake();
   requestAnimationFrame(loop);
-};
+}
+// Returning visitors skip the intro. iOS still needs one tap for motion access, so only where it doesn't.
+if (get('moonStarted') && !window.DeviceOrientationEvent?.requestPermission) start();
 
 // Keep the screen on while searching the sky; the lock drops when the tab is hidden, so re-acquire
 const keepAwake = () => navigator.wakeLock?.request('screen').catch(() => {});
@@ -123,7 +164,8 @@ function onOrient(e) {
     -Math.cos(a) * Math.sin(g) - Math.sin(a) * Math.sin(b) * Math.cos(g),
     -Math.sin(a) * Math.sin(g) + Math.cos(a) * Math.sin(b) * Math.cos(g),
     -Math.cos(b) * Math.cos(g)];
-  smooth = smooth ? smooth.map((s, i) => s * 0.8 + v[i] * 0.2) : v; // low-pass vs. jitter
+  const k = 0.5 + stab / 100 * 0.47; // low-pass vs. hand shake: more stable = more lag
+  smooth = smooth ? smooth.map((s, i) => s * k + v[i] * (1 - k)) : v;
   const [x, y, z] = smooth, n = Math.hypot(x, y, z);
   view = {az: (deg(Math.atan2(x, y)) + 360) % 360, alt: deg(Math.asin(z / n))};
 }
