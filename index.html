@@ -161,7 +161,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.16 · 29.10.2026";
+const VERSION = "v1.17 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -174,7 +174,7 @@ const dirs = DE ? ['N','NO','O','SO','S','SW','W','NW'] : ['N','NE','E','SE','S'
 const compass = az => dirs[Math.round(az / 45) % 8];
 const fmt = d => d ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '–';
 
-let pos = null, view = null, smooth = null, fast = null, slow = null, lastT = 0, hasSensor = false, path = [], pathAt = 0;
+let pos = null, view = null, smooth = null, fast = null, slow = null, lastT = 0, northOff = null, hasSensor = false, path = [], pathAt = 0;
 const moonAt = d => { // suncalc azimuth is from south; convert to compass bearing
   const m = SunCalc.getMoonPosition(d, pos.latitude, pos.longitude);
   return {t: d, az: (deg(m.azimuth) + 180) % 360, alt: deg(m.altitude)};
@@ -326,8 +326,17 @@ const until = d => { const m = Math.round((d - Date.now()) / 60000);
 
 function onOrient(e) {
   if (e.beta == null) return;
+  const t = performance.now(), dt = Math.min(0.2, (t - (lastT || t - 16)) / 1000); lastT = t;
   let alpha;
-  if (e.webkitCompassHeading != null) alpha = 360 - e.webkitCompassHeading; // iOS
+  if (e.webkitCompassHeading != null && e.alpha != null) {
+    // iOS: e.alpha is gyro-based (smooth, but no north), webkitCompassHeading knows north but is noisy.
+    // Use the gyro for motion and let the compass only slowly (τ = 4 s) correct the north offset.
+    const target = rad(360 - e.webkitCompassHeading - e.alpha);
+    const k = northOff ? 1 - Math.exp(-dt / 4) : 1;
+    northOff = northOff ? [northOff[0] * (1 - k) + Math.cos(target) * k, northOff[1] * (1 - k) + Math.sin(target) * k]
+                        : [Math.cos(target), Math.sin(target)];
+    alpha = e.alpha + deg(Math.atan2(northOff[1], northOff[0]));
+  } else if (e.webkitCompassHeading != null) alpha = 360 - e.webkitCompassHeading; // iOS without gyro alpha
   else if (e.absolute || e.type === 'deviceorientationabsolute') alpha = e.alpha;
   else return; // relative alpha has no north reference
   hasSensor = true;
@@ -339,8 +348,14 @@ function onOrient(e) {
     -Math.cos(b) * Math.cos(g)];
   // Two time-based filters: "slow" hides hand/compass jitter, "fast" follows real turns.
   // Only when they drift clearly apart (a real turn, not jitter) does the output switch to fast.
-  const t = performance.now(), dt = Math.min(0.2, (t - (lastT || t - 16)) / 1000); lastT = t;
   const ema = (s, tau) => { const a = 1 - Math.exp(-dt / tau); return s ? s.map((c, i) => c * (1 - a) + v[i] * a) : v };
+  if (northOff && e.alpha != null) {
+    // Gyro motion is already clean: only a touch of smoothing, so the marker sticks to the sky in the camera image
+    smooth = ema(smooth, 0.01 + stab / 100 * 0.03);
+    const [x, y, z] = smooth, n = Math.hypot(x, y, z);
+    view = {az: (deg(Math.atan2(x, y)) + 360) % 360, alt: deg(Math.asin(z / n))};
+    return;
+  }
   fast = ema(fast, 0.12); // even while turning, glide rather than snap
   slow = ema(slow, 0.15 + stab / 100 * 0.65); // stabilization slider: 0.15 s … 0.8 s
   const apart = deg(Math.acos(Math.min(1, fast.reduce((s, c, i) => s + c * slow[i], 0) / Math.hypot(...fast) / Math.hypot(...slow))));
