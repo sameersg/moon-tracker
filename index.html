@@ -50,6 +50,8 @@
     <summary data-de="Einstellungen">Settings</summary>
     <label><input id="camOn" type="checkbox"> <span data-de="Kameraansicht (aus = dunkler Himmel)">Camera view (off = dark sky)</span></label>
     <label><span data-de="Stabilisierung">Stabilization</span> <input id="stab" type="range" min="0" max="100" value="80"></label>
+    <label><span data-de="Höhe Häuser/Bäume">Buildings/trees height</span> <input id="obst" type="range" min="0" max="40" value="10"> <span id="obstv">10°</span></label>
+    <button id="setObst" style="font-size:13px;padding:6px 14px;margin:2px 0 6px" data-de="Auf Dachkante zielen &amp; tippen">Aim at rooftop edge &amp; tap</button>
     <label><span data-de="Kompass-Korrektur">Compass correction</span> <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
     <button id="locate" style="font-size:13px;padding:6px 14px;margin:6px 0" data-de="Standort aktualisieren">Update location</button>
     <div style="font-size:12px;opacity:.7" data-de="Nervige Abfragen? In Safari auf <b>aA</b> tippen → Website-Einstellungen → Kamera &amp; Standort auf <b>Erlauben</b>.">Tired of permission prompts? In Safari tap <b>aA</b> → Website Settings → set Camera &amp; Location to <b>Allow</b>.</div>
@@ -99,6 +101,31 @@ $('offset').value = offset; $('offv').textContent = offset + '°';
 $('offset').oninput = e => { offset = +e.target.value; $('offv').textContent = offset + '°'; set('moonOffset', offset) };
 $('stab').value = stab;
 $('stab').oninput = e => { stab = +e.target.value; set('moonStab', stab) };
+
+// Obstruction height: the moon only becomes visible once it clears the local buildings/trees
+let obst = +get('moonObst', 10);
+const setObst = v => { obst = Math.max(0, Math.min(40, Math.round(v))); $('obst').value = obst;
+  $('obstv').textContent = obst + '°'; set('moonObst', obst) };
+setObst(obst);
+$('obst').oninput = e => setObst(+e.target.value);
+$('setObst').onclick = () => view && setObst(view.alt);
+
+// Cloud forecast (Open-Meteo, no key). Coordinates rounded to ~10 km before leaving the device.
+let clouds = null;
+function loadClouds() {
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${pos.latitude.toFixed(1)}&longitude=${pos.longitude.toFixed(1)}` +
+    '&hourly=cloud_cover&forecast_days=2&timeformat=unixtime')
+    .then(r => r.json()).then(d => clouds = d.hourly).catch(() => {});
+}
+const cloudAt = t => {
+  if (!clouds) return '';
+  let i = 0;
+  clouds.time.forEach((s, j) => { if (Math.abs(s * 1000 - t) < Math.abs(clouds.time[i] * 1000 - t)) i = j });
+  const c = clouds.cloud_cover[i];
+  return c < 30 ? tr('✨ clear sky expected', '✨ klarer Himmel erwartet')
+    : c < 70 ? tr(`⛅ partly cloudy (${c}%)`, `⛅ teils bewölkt (${c}%)`)
+    : tr(`☁️ cloudy (${c}%) – may be hidden`, `☁️ bewölkt (${c}%) – evtl. verdeckt`);
+};
 
 $('camOn').checked = get('moonCam', '1') === '1';
 $('camOn').onchange = e => { set('moonCam', e.target.checked ? '1' : '0'); setCam(e.target.checked) };
@@ -187,20 +214,24 @@ function loop() {
     path = Array.from({length: 73}, (_, i) => moonAt(new Date(t0 + i * 600000)));
     pathAt = +now;
   }
+  if (!clouds && !loadClouds.started) { loadClouds.started = true; loadClouds(); }
   const peak = path.reduce((a, b) => b.alt > a.alt ? b : a);
-  const clear = alt < 10 && path.find(p => p.alt >= 10);
+  const vis = alt < obst && path.find(p => p.t > now && p.alt >= obst); // when it clears the rooftops
+  const visible = alt >= obst;
   const ill = SunCalc.getMoonIllumination(now);
   const t = SunCalc.getMoonTimes(now, pos.latitude, pos.longitude);
-  const risesSoon = alt < 0 && t.rise > now;
-  shareText = tr(`🌙 Karwa Chauth: moonrise here today at ${fmt(t.rise)}`, `🌙 Karwa Chauth: Mondaufgang heute hier um ${fmt(t.rise)}`) +
-    (clear ? tr(`, above the rooftops ~${fmt(clear.t)}`, `, über den Dächern ~${fmt(clear.t)}`) : '') +
+  const visIn = vis && tr(`visible in ${until(vis.t)} (~${fmt(vis.t)})`, `sichtbar in ${until(vis.t)} (~${fmt(vis.t)})`);
+  shareText = (vis
+      ? tr(`🌙 Karwa Chauth: the moon will be visible here ~${fmt(vis.t)}`, `🌙 Karwa Chauth: der Mond ist hier ab ~${fmt(vis.t)} sichtbar`)
+      : tr(`🌙 Karwa Chauth: moonrise here today at ${fmt(t.rise)}`, `🌙 Karwa Chauth: Mondaufgang heute hier um ${fmt(t.rise)}`)) +
     tr('. Find it with Moon Tracker:', '. Finde ihn mit Moon Tracker:');
   const phase =['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
   $('moon').textContent = phase;
   $('info').innerHTML =
     `${tr('Direction', 'Richtung')} <b>${az.toFixed(0)}° ${compass(az)}</b> · ${tr('Altitude', 'Höhe')} <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% ${tr('lit', 'beleuchtet')}<br>` +
     `${tr('Moonrise', 'Mondaufgang')} <b>${fmt(t.rise)}</b> · ${tr('Moonset', 'Untergang')} ${fmt(t.set)}<br>` +
-    (clear ? `${tr('Above rooftops', 'Über den Dächern')} (10°) ~<b>${fmt(clear.t)}</b> · ` : '') +
+    (vis ? `👁 ${tr('Visible above buildings', 'Sichtbar über den Dächern')} (${obst}°) ~<b>${fmt(vis.t)}</b> ${cloudAt(vis.t)}<br>`
+      : visible ? `👁 ${cloudAt(now)}<br>` : '') +
     `${tr('Highest', 'Höchster Stand')} ~${fmt(peak.t)} ${tr('at', 'bei')} ${peak.alt.toFixed(0)}° ${compass(peak.az)}`;
 
   const W = innerWidth, H = innerHeight, sky = $('sky'), ctx = sky.getContext('2d'), dpr = devicePixelRatio;
@@ -210,8 +241,8 @@ function loop() {
 
   if (!hasSensor || !view) {
     $('moon').style.display = $('ring').style.display = $('arrow').style.display = 'none';
-    $('hint').textContent = risesSoon ? tr(`Moonrise in ${until(t.rise)} (${fmt(t.rise)})`, `Mondaufgang in ${until(t.rise)} (${fmt(t.rise)})`)
-      : alt < 0 ? tr('Moon is below the horizon', 'Mond ist unter dem Horizont')
+    $('hint').textContent = vis ? tr('Moon ', 'Mond ') + visIn
+      : !visible ? tr('Moon is below the horizon', 'Mond ist unter dem Horizont')
       : tr(`Look ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° above the horizon`,
            `Schau nach ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° über dem Horizont`);
     return;
@@ -223,6 +254,11 @@ function loop() {
   const hy = H / 2 + view.alt / vfov * H;
   ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 1; ctx.setLineDash([]);
   ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(W, hy); ctx.stroke();
+  const oy = H / 2 - (obst - view.alt) / vfov * H; // rooftop line
+  ctx.strokeStyle = '#8fd3ff66'; ctx.setLineDash([2, 4]);
+  ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(W, oy); ctx.stroke();
+  ctx.fillStyle = '#8fd3ffaa'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
+  ctx.fillText(tr('rooftops', 'Dächer') + ` ${obst}°`, 6, oy - 4);
   ctx.strokeStyle = '#ffe9a8aa'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
   ctx.beginPath();
   let pen = false;
@@ -242,6 +278,12 @@ function loop() {
     ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
     ctx.fillText(fmt(p.t), x, y - 10); ctx.shadowBlur = 0;
   }
+  const vp = vis && pts.find(q => q.p === vis);
+  if (vp?.ok) { // mark the moment it clears the rooftops
+    ctx.strokeStyle = '#8fd3ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(vp.x, vp.y, 9, 0, 7); ctx.stroke();
+    ctx.fillStyle = '#8fd3ff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText('👁 ' + fmt(vis.t), vp.x, vp.y + 24); ctx.shadowBlur = 0;
+  }
   const sx = W / 2 + dAz / hfov * W, sy = H / 2 - dAlt / vfov * H;
   const onScreen = Math.abs(dAz) < hfov / 2 && Math.abs(dAlt) < vfov / 2;
 
@@ -249,8 +291,8 @@ function loop() {
   $('arrow').style.display = onScreen ? 'none' : 'block';
   if (onScreen) {
     for (const el of [$('moon'), $('ring')]) { el.style.left = sx + 'px'; el.style.top = sy + 'px'; }
-    $('hint').textContent = risesSoon ? tr(`Moon is here – rises in ${until(t.rise)}`, `Hier ist der Mond – Aufgang in ${until(t.rise)}`)
-      : alt < 0 ? tr('The moon is here – but below the horizon 🌍', 'Hier ist der Mond – aber unter dem Horizont 🌍')
+    $('hint').textContent = vis ? tr('Moon is here – ', 'Hier ist der Mond – ') + visIn
+      : !visible ? tr('The moon is here – but hidden below the rooftops 🏠', 'Hier ist der Mond – aber hinter den Dächern 🏠')
       : tr('There is the moon! 🌙 Happy Karwa Chauth', 'Da ist der Mond! 🌙 Frohes Karwa Chauth');
   } else {
     const ang = Math.atan2(-dAlt, dAz); // screen angle toward moon
@@ -261,7 +303,7 @@ function loop() {
     const lr = Math.abs(dAz) > 10 ? (dAz > 0 ? tr('right', 'rechts') : tr('left', 'links')) : '';
     const ud = Math.abs(dAlt) > 10 ? (dAlt > 0 ? tr('up', 'oben') : tr('down', 'unten')) : '';
     $('hint').textContent = tr('Turn ', 'Dreh nach ') + [lr, ud].filter(Boolean).join(tr(' and ', ' und ')) +
-      (risesSoon ? tr(` · rises in ${until(t.rise)}`, ` · Aufgang in ${until(t.rise)}`) : '');
+      (vis ? ' · ' + visIn : '');
   }
 }
 </script>
