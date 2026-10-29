@@ -8,7 +8,8 @@
 <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
 <style>
   html,body{margin:0;height:100%;background:#0b0b1e;color:#fff;font-family:system-ui,sans-serif;overflow:hidden}
-  video{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}
+  video,canvas{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}
+  canvas{pointer-events:none}
   #moon{position:fixed;left:0;top:0;font-size:64px;line-height:1;transform:translate(-50%,-50%);
         filter:drop-shadow(0 0 24px #ffe9a8);display:none;pointer-events:none}
   #ring{position:fixed;width:120px;height:120px;border:2px dashed #ffe9a8;border-radius:50%;
@@ -31,6 +32,7 @@
 </head>
 <body>
 <video id="cam" autoplay playsinline muted></video>
+<canvas id="sky"></canvas>
 <div id="cross"></div>
 <div id="ring"></div>
 <div id="moon">🌕</div>
@@ -40,7 +42,10 @@
   <div id="info"></div>
   <div id="perm"></div>
   <label>Compass correction <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
-  <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
+    <button id="share" style="font-size:13px;padding:6px 14px;margin-top:6px">Share moonrise</button>
+  </div>
 </div>
 <div id="start">
   <div style="font-size:72px">🌕</div>
@@ -58,7 +63,11 @@ const dirs = ['N','NE','E','SE','S','SW','W','NW'];
 const compass = az => dirs[Math.round(az / 45) % 8];
 const fmt = d => d ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '–';
 
-let pos = null, view = null, smooth = null, hasSensor = false;
+let pos = null, view = null, smooth = null, hasSensor = false, path = [], pathAt = 0;
+const moonAt = d => { // suncalc azimuth is from south; convert to compass bearing
+  const m = SunCalc.getMoonPosition(d, pos.latitude, pos.longitude);
+  return {t: d, az: (deg(m.azimuth) + 180) % 360, alt: deg(m.altitude)};
+};
 const denied = new Set();
 const showPerm = () => $('perm').textContent = denied.size
   ? `No access to: ${[...denied].join(', ')} – allow it in your browser/site settings and reload.` : '';
@@ -84,8 +93,22 @@ $('go').onclick = () => {
   navigator.mediaDevices?.getUserMedia({video: {facingMode: 'environment'}})
     .then(s => $('cam').srcObject = s)
     .catch(() => { denied.add('camera'); showPerm() });
+  keepAwake();
   requestAnimationFrame(loop);
 };
+
+// Keep the screen on while searching the sky; the lock drops when the tab is hidden, so re-acquire
+const keepAwake = () => navigator.wakeLock?.request('screen').catch(() => {});
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && keepAwake());
+
+let shareText = '';
+$('share').onclick = () => {
+  const data = {title: 'Moon Tracker', text: shareText, url: location.href};
+  if (navigator.share) navigator.share(data).catch(() => {});
+  else navigator.clipboard?.writeText(`${shareText} ${location.href}`).then(() => $('share').textContent = 'Copied!');
+};
+const until = d => { const m = Math.round((d - Date.now()) / 60000);
+  return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min` };
 
 function onOrient(e) {
   if (e.beta == null) return;
@@ -109,25 +132,65 @@ function loop() {
   requestAnimationFrame(loop);
   if (!pos) { $('hint').textContent = denied.has('location') ? 'Location needed to find the moon' : 'Finding your location…'; return; }
   const now = new Date();
-  const m = SunCalc.getMoonPosition(now, pos.latitude, pos.longitude);
-  const az = (deg(m.azimuth) + 180) % 360, alt = deg(m.altitude); // suncalc azimuth is from south
+  const {az, alt} = moonAt(now);
+  if (now - pathAt > 60000) { // next 12 h in 10-min steps, refreshed every minute
+    const t0 = Math.floor(now / 600000) * 600000; // snap to :x0 so labels land on full hours
+    path = Array.from({length: 73}, (_, i) => moonAt(new Date(t0 + i * 600000)));
+    pathAt = +now;
+  }
+  const peak = path.reduce((a, b) => b.alt > a.alt ? b : a);
+  const clear = alt < 10 && path.find(p => p.alt >= 10);
   const ill = SunCalc.getMoonIllumination(now);
   const t = SunCalc.getMoonTimes(now, pos.latitude, pos.longitude);
-  const phase = ['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
+  const risesSoon = alt < 0 && t.rise > now;
+  shareText = `🌙 Karwa Chauth: moonrise here today at ${fmt(t.rise)}` +
+    (clear ? `, above the rooftops ~${fmt(clear.t)}` : '') + '. Find it with Moon Tracker:';
+  const phase =['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
   $('moon').textContent = phase;
   $('info').innerHTML =
     `Direction <b>${az.toFixed(0)}° ${compass(az)}</b> · Altitude <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% lit<br>` +
-    `Moonrise <b>${fmt(t.rise)}</b> · Moonset ${fmt(t.set)}`;
+    `Moonrise <b>${fmt(t.rise)}</b> · Moonset ${fmt(t.set)}<br>` +
+    (clear ? `Above rooftops (10°) ~<b>${fmt(clear.t)}</b> · ` : '') +
+    `Highest ~${fmt(peak.t)} at ${peak.alt.toFixed(0)}° ${compass(peak.az)}`;
+
+  const W = innerWidth, H = innerHeight, sky = $('sky'), ctx = sky.getContext('2d'), dpr = devicePixelRatio;
+  if (sky.width !== W * dpr || sky.height !== H * dpr) { sky.width = W * dpr; sky.height = H * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
 
   if (!hasSensor || !view) {
     $('moon').style.display = $('ring').style.display = $('arrow').style.display = 'none';
-    $('hint').textContent = alt < 0 ? `Moon is still below the horizon – rises at ${fmt(t.rise)}`
+    $('hint').textContent = risesSoon ? `Moonrise in ${until(t.rise)} (${fmt(t.rise)})`
+      : alt < 0 ? 'Moon is below the horizon'
       : `Look ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° above the horizon`;
     return;
   }
-  const W = innerWidth, H = innerHeight;
   const vfov = 60, hfov = vfov * W / H; // ponytail: fixed FOV guess, portrait only, roll ignored
   const dAz = wrap(az - view.az - offset), dAlt = alt - view.alt;
+
+  // Horizon line + the moon's path over the next 12 h with hourly time labels
+  const hy = H / 2 + view.alt / vfov * H;
+  ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(W, hy); ctx.stroke();
+  ctx.strokeStyle = '#ffe9a8aa'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  let pen = false;
+  const pts = path.map(p => {
+    const da = wrap(p.az - view.az - offset);
+    const ok = Math.abs(da) < 90 && p.alt > -10; // skip points behind the viewer
+    const x = W / 2 + da / hfov * W, y = H / 2 - (p.alt - view.alt) / vfov * H;
+    if (ok) pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    pen = ok;
+    return {p, x, y, ok};
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.font = '600 13px system-ui'; ctx.textAlign = 'center';
+  for (const {p, x, y, ok} of pts.slice(1)) {
+    if (!ok || p.t.getMinutes() >= 10) continue; // one label per hour
+    ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText(fmt(p.t), x, y - 10); ctx.shadowBlur = 0;
+  }
   const sx = W / 2 + dAz / hfov * W, sy = H / 2 - dAlt / vfov * H;
   const onScreen = Math.abs(dAz) < hfov / 2 && Math.abs(dAlt) < vfov / 2;
 
@@ -135,7 +198,8 @@ function loop() {
   $('arrow').style.display = onScreen ? 'none' : 'block';
   if (onScreen) {
     for (const el of [$('moon'), $('ring')]) { el.style.left = sx + 'px'; el.style.top = sy + 'px'; }
-    $('hint').textContent = alt < 0 ? 'The moon is here – but still below the horizon 🌍' : 'There is the moon! 🌙 Happy Karwa Chauth';
+    $('hint').textContent = risesSoon ? `Moon is here – rises in ${until(t.rise)}`
+      : alt < 0 ? 'The moon is here – but below the horizon 🌍' :'There is the moon! 🌙 Happy Karwa Chauth';
   } else {
     const ang = Math.atan2(-dAlt, dAz); // screen angle toward moon
     const r = Math.min(W, H) * 0.38;
@@ -145,7 +209,7 @@ function loop() {
     const lr = Math.abs(dAz) > 10 ? (dAz > 0 ? 'right' : 'left') : '';
     const ud = Math.abs(dAlt) > 10 ? (dAlt > 0 ? 'up' : 'down') : '';
     $('hint').textContent = 'Turn ' + [lr, ud].filter(Boolean).join(' and ') +
-      (alt < 0 ? ` (below horizon, rises at ${fmt(t.rise)})` : '');
+      (risesSoon ? ` · rises in ${until(t.rise)}` : '');
   }
 }
 </script>
