@@ -38,6 +38,8 @@
   body:not(.cam) #cam{display:none}
   body:not(.cam){background:radial-gradient(ellipse at 50% 120%,#1d1d44,#05050f 70%)}
   .credit{display:block;font-size:12px;color:#ffe9a8;opacity:.7;text-decoration:none;margin-top:6px}
+  #share{position:fixed; /* top-left, mirrors the ? button */top:calc(12px + env(safe-area-inset-top));left:12px;z-index:20;height:40px;padding:0 16px;
+         display:flex;align-items:center;gap:6px;font-size:15px;box-shadow:0 2px 12px #0008}
   #helpBtn{position:fixed;top:calc(12px + env(safe-area-inset-top));right:12px;z-index:20;width:40px;height:40px;
            padding:0;border-radius:50%;font-size:20px;background:#000a;color:#ffe9a8;border:1px solid #ffe9a855}
   dialog{width:calc(100% - 32px);max-width:520px;max-height:85vh;overflow-y:auto;background:#15152e;color:#fff;
@@ -81,9 +83,9 @@
   </details>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a> <span class="credit ver" style="display:inline"></span>
-    <button id="share" style="font-size:13px;padding:6px 14px;margin-top:6px" data-de="Mondaufgang teilen">Share moonrise</button>
   </div>
 </div>
+<button id="share"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg> <span data-de="Teilen">Share</span></button>
 <button id="helpBtn" aria-label="Help / Hilfe">?</button>
 <dialog id="help">
   <h2><span class="en">Help</span><span class="de">Hilfe</span></h2>
@@ -161,7 +163,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.17 · 29.10.2026";
+const VERSION = "v1.18 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -315,11 +317,11 @@ if (get('moonStarted') && !window.DeviceOrientationEvent?.requestPermission) sta
 const keepAwake = () => navigator.wakeLock?.request('screen').catch(() => {});
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && keepAwake());
 
-let shareText = '';
+let shareText = tr('🌙 Find the moon for Karwa Chauth with Moon Tracker:', '🌙 Finde den Mond zu Karwa Chauth mit Moon Tracker:');
 $('share').onclick = () => {
   const data = {title: 'Moon Tracker', text: shareText, url: location.href};
   if (navigator.share) navigator.share(data).catch(() => {});
-  else navigator.clipboard?.writeText(`${shareText} ${location.href}`).then(() => $('share').textContent = tr('Copied!', 'Kopiert!'));
+  else navigator.clipboard?.writeText(`${shareText} ${location.href}`).then(() => $('share').querySelector('span').textContent = tr('Copied!', 'Kopiert!'));
 };
 const until = d => { const m = Math.round((d - Date.now()) / 60000);
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min` };
