@@ -26,6 +26,7 @@
   button{font-size:18px;padding:14px 28px;border:0;border-radius:999px;background:#ffe9a8;color:#222;font-weight:700}
   label{display:flex;gap:8px;align-items:center;font-size:13px;opacity:.8}
   input[type=range]{flex:1}
+  .credit{display:block;font-size:12px;color:#ffe9a8;opacity:.7;text-decoration:none;margin-top:6px}
 </style>
 </head>
 <body>
@@ -39,6 +40,7 @@
   <div id="info"></div>
   <div id="perm"></div>
   <label>Compass correction <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
+  <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
 </div>
 <div id="start">
   <div style="font-size:72px">🌕</div>
@@ -46,6 +48,7 @@
   <p>Karwa Chauth – find the moon to break your fast.<br>Point your phone at the sky.</p>
   <p style="font-size:14px;opacity:.75">On the next step your phone will ask for access to<br>📍 Location · 📷 Camera · 🧭 Motion &amp; orientation</p>
   <button id="go">Find the moon</button>
+  <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
 </div>
 <script>
 const $ = id => document.getElementById(id);
