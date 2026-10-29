@@ -8,7 +8,7 @@
 <meta property="og:title" content="Moon Tracker – Karwa Chauth 🌙">
 <title>Moon Tracker – Karwa Chauth</title>
 <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Playfair+Display:wght@600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@1,500&display=swap">
 <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments) };</script>
 <script defer src="/_vercel/insights/script.js" data-endpoint="/_vercel/insights"></script>
 <style>
@@ -178,7 +178,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.22 · 29.10.2026";
+const VERSION = "v1.23 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -340,80 +340,76 @@ $('share').onclick = () => {
 };
 // Story image (1080×1920, 9:16) for Instagram, TikTok, Snapchat, WhatsApp status or the gallery. Pre-rendered so the tap can share
 // immediately; iOS only allows sharing right inside the tap.
-let storyFile = null, storyKey = '';
-async function renderStory(info) {
-  const key = JSON.stringify(info);
-  if (key === storyKey) return;
-  storyKey = key;
-  await Promise.all(['500 60px Cormorant Garamond', 'italic 500 60px Cormorant Garamond', '700 60px Cormorant Garamond', '600 60px Playfair Display']
-    .map(f => document.fonts.load(f).catch(() => {})));
+let storyFile = null, storyInfo = null;
+// Drawn at tap time so the camera version uses the current frame (the real sky and moon).
+// Deliberately restrained: real photo or flat night, no glow, no sparkles, editorial type.
+function drawStory(info) {
   const W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d'), serif = '"Cormorant Garamond", Georgia, serif';
-  // Night sky melting into plum and rose
-  const bg = g.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, '#07061a'); bg.addColorStop(0.45, '#1b1240'); bg.addColorStop(0.75, '#4a1d4f'); bg.addColorStop(1, '#a24a6a');
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 220; i++) { // stars, denser at the top
-    const y = Math.pow(Math.random(), 1.6) * H * 0.75;
-    g.fillStyle = `rgba(255,244,220,${0.25 + Math.random() * 0.6})`;
-    g.beginPath(); g.arc(Math.random() * W, y, Math.random() * 2 + 0.4, 0, 7); g.fill();
+  const g = c.getContext('2d'), serif = '"Cormorant Garamond", Georgia, serif', sans = 'system-ui, -apple-system, sans-serif';
+  const v = $('cam');
+  if (document.body.classList.contains('cam') && v.videoWidth) {
+    const k = Math.max(W / v.videoWidth, H / v.videoHeight), vw = v.videoWidth * k, vh = v.videoHeight * k;
+    g.drawImage(v, (W - vw) / 2, (H - vh) / 2, vw, vh);
+    const scrim = g.createLinearGradient(0, H * 0.5, 0, H); // only for legibility
+    scrim.addColorStop(0, 'rgba(0,0,0,0)'); scrim.addColorStop(1, 'rgba(0,0,0,0.6)');
+    g.fillStyle = scrim; g.fillRect(0, 0, W, H);
+  } else {
+    g.fillStyle = '#0f1220'; g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 40; i++) { // a few faint stars
+      g.fillStyle = `rgba(255,250,235,${0.15 + Math.random() * 0.35})`;
+      g.beginPath(); g.arc(Math.random() * W, Math.random() * H * 0.6, Math.random() * 1.6 + 0.4, 0, 7); g.fill();
+    }
+    const mx = 540, my = 700, r = 210, f = info.frac, lit = info.waxing ? 1 : -1;
+    g.save(); g.beginPath(); g.arc(mx, my, r, 0, 7); g.clip();
+    g.fillStyle = '#efe6d2'; g.fillRect(mx - r, my - r, 2 * r, 2 * r);
+    g.fillStyle = 'rgba(150,135,110,0.11)'; g.filter = 'blur(14px)';
+    [[-60, -40, 55], [40, 55, 70], [75, -70, 38], [-30, 100, 32]].forEach(([dx, dy, cr]) => { g.beginPath(); g.arc(mx + dx, my + dy, cr, 0, 7); g.fill(); });
+    g.filter = 'none'; g.fillStyle = '#161a2a';
+    const darkHalf = () => g.rect(mx, my - r, -lit * r, 2 * r);
+    const term = () => g.ellipse(mx, my, Math.abs(2 * f - 1) * r, r, 0, 0, 7);
+    if (f < 0.5) { g.beginPath(); darkHalf(); term(); g.fill(); }
+    else { g.beginPath(); darkHalf(); g.clip(); g.beginPath(); darkHalf(); term(); g.fill('evenodd'); }
+    g.restore();
   }
-  const sparkle = (x, y, r) => { // 4-point twinkle
-    g.save(); g.translate(x, y); g.fillStyle = '#ffe7b0'; g.shadowColor = '#ffd27a'; g.shadowBlur = 18;
-    g.beginPath(); g.moveTo(0, -r); g.quadraticCurveTo(0, 0, r, 0); g.quadraticCurveTo(0, 0, 0, r);
-    g.quadraticCurveTo(0, 0, -r, 0); g.quadraticCurveTo(0, 0, 0, -r); g.fill(); g.restore();
-  };
-  [[190, 520, 22], [880, 430, 16], [930, 980, 26], [150, 1040, 14], [760, 260, 12]].forEach(a => sparkle(...a));
-  // Moon: soft halo, cream-gold disc, faint maria, tonight's real phase shadow
-  const mx = 540, my = 760, r = 230;
-  const halo = g.createRadialGradient(mx, my, r * 0.9, mx, my, r * 2.6);
-  halo.addColorStop(0, 'rgba(255,226,160,0.45)'); halo.addColorStop(1, 'rgba(255,226,160,0)');
-  g.fillStyle = halo; g.fillRect(0, my - r * 3, W, r * 6);
-  g.save(); g.beginPath(); g.arc(mx, my, r, 0, 7); g.clip();
-  const disc = g.createRadialGradient(mx - 60, my - 70, 20, mx, my, r);
-  disc.addColorStop(0, '#fffaf0'); disc.addColorStop(0.6, '#f6e3b8'); disc.addColorStop(1, '#d9b47e');
-  g.fillStyle = disc; g.fillRect(mx - r, my - r, 2 * r, 2 * r);
-  g.fillStyle = 'rgba(170,130,80,0.10)'; g.filter = 'blur(8px)'; // soft maria, not cartoon craters
-  [[-70, -40, 60], [40, 60, 75], [80, -80, 40], [-30, 110, 35], [-110, 50, 30]].forEach(([dx, dy, cr]) => { g.beginPath(); g.arc(mx + dx, my + dy, cr, 0, 7); g.fill(); });
-  g.filter = 'none';
-  const f = info.frac, lit = info.waxing ? 1 : -1; // northern sky: waxing lit on the right
-  g.fillStyle = 'rgba(12,8,36,0.88)';
-  const darkHalf = () => g.rect(mx, my - r, -lit * r, 2 * r);
-  const term = () => g.ellipse(mx, my, Math.abs(2 * f - 1) * r, r, 0, 0, 7); // terminator
-  if (f < 0.5) { g.beginPath(); darkHalf(); term(); g.fill(); } // crescent: dark half + ellipse
-  else { g.beginPath(); darkHalf(); g.clip(); g.beginPath(); darkHalf(); term(); g.fill('evenodd'); } // gibbous: dark half − ellipse
-  g.restore();
-  // Typography
-  g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-  const gold = (y0, y1) => { const gr = g.createLinearGradient(0, y0, 0, y1); gr.addColorStop(0, '#fff1c9'); gr.addColorStop(0.5, '#f2c879'); gr.addColorStop(1, '#c9944a'); return gr; };
-  g.letterSpacing = '18px'; g.fillStyle = gold(150, 230); g.font = `600 64px ${serif}`; g.fillText('KARWA CHAUTH', 549, 230);
-  g.letterSpacing = '0px'; g.fillStyle = '#f5e6d3cc'; g.font = `italic 500 50px ${serif}`;
-  g.fillText(new Date().toLocaleDateString(DE ? 'de-DE' : 'en-US', {weekday: 'long', day: 'numeric', month: 'long'}), 540, 305);
-  const orn = y => { g.strokeStyle = '#e8c07a99'; g.lineWidth = 2; g.beginPath(); g.moveTo(330, y); g.lineTo(500, y); g.moveTo(580, y); g.lineTo(750, y); g.stroke(); sparkle(540, y, 12); };
-  orn(1170);
-  g.fillStyle = '#fbeee0'; g.font = `italic 500 72px ${serif}`; g.fillText(info.label, 540, 1290);
-  g.fillStyle = gold(1330, 1540); g.shadowColor = 'rgba(255,200,120,0.35)'; g.shadowBlur = 30;
-  g.font = '600 210px "Playfair Display", Georgia, serif'; g.fillText(info.time, 540, 1500); g.shadowBlur = 0; // lining figures
-  g.fillStyle = '#f5e6d3ee'; g.font = `italic 500 58px ${serif}`; g.fillText(info.sub, 540, 1615);
-  orn(1685);
-  g.letterSpacing = '4px'; g.fillStyle = '#ffffffb0'; g.font = `500 36px ${serif}`; g.fillText(location.host + '  ·  SG Studio', 542, 1750);
-  g.letterSpacing = '0px';
-  c.toBlob(b => storyFile = new File([b], 'karwa-chauth-moon.png', {type: 'image/png'}), 'image/png');
+  // film grain, so it reads as a picture rather than a render
+  const n = document.createElement('canvas'); n.width = n.height = 160;
+  const nd = n.getContext('2d').createImageData(160, 160);
+  for (let i = 0; i < nd.data.length; i += 4) { const x = Math.random() * 255; nd.data[i] = nd.data[i + 1] = nd.data[i + 2] = x; nd.data[i + 3] = 14; }
+  n.getContext('2d').putImageData(nd, 0, 0);
+  g.fillStyle = g.createPattern(n, 'repeat'); g.fillRect(0, 0, W, H);
+  // Editorial text block, bottom-left
+  const x = 90; let y = 1390;
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.shadowColor = 'rgba(0,0,0,0.35)'; g.shadowBlur = 12;
+  g.fillStyle = 'rgba(255,255,255,0.78)'; g.font = `500 30px ${sans}`; g.letterSpacing = '7px';
+  g.fillText(('Karwa Chauth · ' + new Date().toLocaleDateString(DE ? 'de-DE' : 'en-GB', {day: 'numeric', month: 'long'})).toUpperCase(), x, y);
+  g.letterSpacing = '0px'; g.fillStyle = '#fff'; g.font = `italic 500 104px ${serif}`;
+  const words = info.label.split(' '); let line = '', out = [];
+  for (const w of words) { const t = line ? line + ' ' + w : w; if (g.measureText(t).width > W - 2 * x && line) { out.push(line); line = w; } else line = t; }
+  out.push(line);
+  for (const l of out) { y += 112; g.fillText(l, x, y); }
+  y += 56; g.shadowBlur = 0; g.fillStyle = 'rgba(255,255,255,0.7)'; g.fillRect(x, y, 90, 2);
+  y += 70; g.shadowBlur = 12; g.fillStyle = 'rgba(255,255,255,0.9)'; g.font = `400 38px ${sans}`;
+  g.fillText(info.sub, x, y);
+  g.shadowBlur = 0; g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,0.45)'; g.font = `400 26px ${sans}`;
+  g.fillText(location.host, W - 60, H - 70);
+  storyFile = null;
+  return new Promise(res => c.toBlob(b => res(storyFile = new File([b], 'karwa-chauth-moon.png', {type: 'image/png'})), 'image/png'));
 }
 const canShareFile = () => navigator.canShare?.({files: [storyFile]});
-$('story').onclick = () => {
-  if (!storyFile) return;
-  $('storyImg').src = URL.createObjectURL(storyFile);
+$('story').onclick = async () => {
   $('storyDlg').showModal();
+  $('storyImg').src = URL.createObjectURL(await drawStory(storyInfo));
 };
-$('storyShare').onclick = () => canShareFile()
+$('storyShare').onclick = () => !storyFile ? null : canShareFile()
   ? navigator.share({files: [storyFile]}).catch(() => {}) : $('storySave').click();
 $('storySave').onclick = () => {
+  if (!storyFile) return;
   // iOS can't download straight into Photos; its share sheet has "Save Image" instead
   if (document.body.classList.contains('ios') && canShareFile()) return navigator.share({files: [storyFile]}).catch(() => {});
   const a = document.createElement('a'); a.href = URL.createObjectURL(storyFile); a.download = storyFile.name; a.click();
 };
-renderStory({frac: 1, waxing: true, label: tr('Waiting for my moon', 'Ich warte auf meinen Mond'), time: '🌙', sub: tr('Fasting with love ♡', 'Mit Liebe gefastet ♡')});
+storyInfo = {frac: 1, waxing: true, label: tr('Waiting for my moon', 'Ich warte auf meinen Mond'), sub: tr('Fasting with love ♡', 'Mit Liebe gefastet ♡')};
+document.fonts.load('italic 500 60px "Cormorant Garamond"').catch(() => {});
 
 const until = d => { const m = Math.round((d - Date.now()) / 60000);
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min` };
@@ -483,11 +479,11 @@ function loop() {
     tr('. Find it with Moon Tracker:', '. Finde ihn mit Moon Tracker:');
   const phase =['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
   $('moon').textContent = phase;
-  renderStory({frac: +ill.fraction.toFixed(2), waxing: ill.phase < 0.5,
+  storyInfo = {frac: ill.fraction, waxing: ill.phase < 0.5,
     // sweet, personal wording: waiting for "my moon" before, "I saw my moon" once it's up
     label: visible ? tr('I saw my moon', 'Ich habe meinen Mond gesehen') : tr('Waiting for my moon', 'Ich warte auf meinen Mond'),
-    time: visible ? fmt(now) : fmt(vis ? vis.t : t.rise),
-    sub: visible ? tr('Fasted for you, broken with love ♡', 'Für dich gefastet, mit Liebe gebrochen ♡') : tr('Fasting with love ♡', 'Mit Liebe gefastet ♡')});
+    sub: visible ? tr(`${fmt(now)} · fasted for you, broken with love ♡`, `${fmt(now)} · für dich gefastet, mit Liebe gebrochen ♡`)
+                 : tr(`visible from ~${fmt(vis ? vis.t : t.rise)} · fasting with love ♡`, `sichtbar ab ~${fmt(vis ? vis.t : t.rise)} · mit Liebe gefastet ♡`)};
   $('info').innerHTML =
     `${tr('Direction', 'Richtung')} <b>${az.toFixed(0)}° ${compass(az)}</b> · ${tr('Altitude', 'Höhe')} <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% ${tr('lit', 'beleuchtet')}<br>` +
     `${tr('Moonrise', 'Mondaufgang')} <b>${fmt(t.rise)}</b> · ${tr('Moonset', 'Untergang')} ${fmt(t.set)}<br>` +
