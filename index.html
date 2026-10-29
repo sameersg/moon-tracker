@@ -72,7 +72,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.7 · 29.10.2026";
+const VERSION = "v1.8 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -257,11 +257,13 @@ function loop() {
   const hy = H / 2 + view.alt / vfov * H;
   ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 1; ctx.setLineDash([]);
   ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(W, hy); ctx.stroke();
-  const oy = H / 2 - (obst - view.alt) / vfov * H; // rooftop line
-  ctx.strokeStyle = '#8fd3ff66'; ctx.setLineDash([2, 4]);
-  ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(W, oy); ctx.stroke();
-  ctx.fillStyle = '#8fd3ffaa'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
-  ctx.fillText(tr('rooftops', 'Dächer') + ` ${obst}°`, 6, oy - 4);
+  if (obst >= 2) { // rooftop line; at ~0° it would just sit on the horizon
+    const oy = H / 2 - (obst - view.alt) / vfov * H;
+    ctx.strokeStyle = '#8fd3ff66'; ctx.setLineDash([2, 4]);
+    ctx.beginPath(); ctx.moveTo(0, oy); ctx.lineTo(W, oy); ctx.stroke();
+    ctx.fillStyle = '#8fd3ffaa'; ctx.font = '11px system-ui'; ctx.textAlign = 'left';
+    ctx.fillText(tr('rooftops', 'Dächer') + ` ${obst}°`, 6, oy - 4);
+  }
   ctx.strokeStyle = '#ffe9a8aa'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
   ctx.beginPath();
   let pen = false;
@@ -275,13 +277,14 @@ function loop() {
   });
   ctx.stroke(); ctx.setLineDash([]);
   ctx.font = '600 13px system-ui'; ctx.textAlign = 'center';
+  const vp = vis && pts.find(q => q.p === vis);
   for (const {p, x, y, ok} of pts.slice(1)) {
     if (!ok || p.t.getMinutes() >= 10) continue; // one label per hour
+    if (vp?.ok && Math.hypot(x - vp.x, y - vp.y) < 40) continue; // don't collide with the 👁 marker
     ctx.fillStyle = '#ffe9a8'; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
     ctx.fillText(fmt(p.t), x, y - 10); ctx.shadowBlur = 0;
   }
-  const vp = vis && pts.find(q => q.p === vis);
   if (vp?.ok) { // mark the moment it clears the rooftops
     ctx.strokeStyle = '#8fd3ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(vp.x, vp.y, 9, 0, 7); ctx.stroke();
     ctx.fillStyle = '#8fd3ff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
