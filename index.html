@@ -30,6 +30,9 @@
   label{display:flex;gap:8px;align-items:center;font-size:13px;opacity:.8}
   input[type=range]{flex:1}
   summary{font-size:13px;opacity:.8;margin:4px 0}
+  details[open]>div.set{max-height:45vh;overflow-y:auto}
+  .help{font-size:11px;opacity:.6;margin:0 0 8px;line-height:1.35}
+  .small{font-size:13px;padding:6px 14px;margin:2px 0 6px}
   body:not(.cam) #cam{display:none}
   body:not(.cam){background:radial-gradient(ellipse at 50% 120%,#1d1d44,#05050f 70%)}
   .credit{display:block;font-size:12px;color:#ffe9a8;opacity:.7;text-decoration:none;margin-top:6px}
@@ -42,19 +45,28 @@
 <div id="ring"></div>
 <div id="moon">🌕</div>
 <div id="arrow">➤</div>
+<button id="measureOk" style="position:fixed;left:50%;top:calc(50% + 40px);transform:translateX(-50%);display:none;z-index:5;white-space:nowrap"></button>
 <div id="hud">
   <div id="hint">…</div>
   <div id="info"></div>
   <div id="perm"></div>
   <details>
     <summary data-de="Einstellungen">Settings</summary>
+    <div class="set">
     <label><input id="camOn" type="checkbox"> <span data-de="Kameraansicht (aus = dunkler Himmel)">Camera view (off = dark sky)</span></label>
+    <p class="help" data-de="Aus: kein Kamerabild, nur dunkler Himmel – spart Akku, keine Kamera-Abfrage.">Off: no camera image, just a dark sky – saves battery, no camera prompt.</p>
     <label><span data-de="Stabilisierung">Stabilization</span> <input id="stab" type="range" min="0" max="100" value="80"></label>
+    <p class="help" data-de="Nach rechts: Mond wackelt weniger, folgt dem Handy aber träger.">Right: the moon shakes less but follows the phone more slowly.</p>
     <label><span data-de="Höhe Häuser/Bäume">Buildings/trees height</span> <input id="obst" type="range" min="0" max="40" value="10"> <span id="obstv">10°</span></label>
-    <button id="setObst" style="font-size:13px;padding:6px 14px;margin:2px 0 6px" data-de="Auf Dachkante zielen &amp; tippen">Aim at rooftop edge &amp; tap</button>
+    <p class="help" data-de="Häuser und Bäume verdecken den Mond nach dem Aufgang noch eine Weile. Hier steht, wie hoch sie in Mondrichtung sind – daraus wird „sichtbar ab“ berechnet. Am einfachsten messen lassen:">Houses and trees hide the moon for a while after it rises. This is how high they are towards the moon – used for the “visible from” time. Easiest is to measure it:</p>
+    <button id="setObst" class="small" data-de="📐 Dachhöhe messen">📐 Measure rooftop height</button>
     <label><span data-de="Kompass-Korrektur">Compass correction</span> <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
-    <button id="locate" style="font-size:13px;padding:6px 14px;margin:6px 0" data-de="Standort aktualisieren">Update location</button>
-    <div style="font-size:12px;opacity:.7" data-de="Nervige Abfragen? In Safari auf <b>aA</b> tippen → Website-Einstellungen → Kamera &amp; Standort auf <b>Erlauben</b>.">Tired of permission prompts? In Safari tap <b>aA</b> → Website Settings → set Camera &amp; Location to <b>Allow</b>.</div>
+    <p class="help" data-de="Handy-Kompasse liegen oft daneben. Steht der echte Mond neben der Markierung, verschieben bis es passt.">Phone compasses are often off. If the real moon is beside the marker, slide until they match.</p>
+    <button id="locate" class="small" data-de="Standort aktualisieren">Update location</button>
+    <p class="help" data-de="Der Standort wird gespeichert. Nur nötig, wenn du an einem anderen Ort bist.">Your location is saved. Only needed if you are somewhere else.</p>
+    <button id="reset" class="small" style="background:none;color:#ffe9a8;border:1px solid #ffe9a8" data-de="Auf Standard zurücksetzen">Reset to defaults</button>
+    <p class="help" data-de="Nervige Abfragen? In Safari auf <b>aA</b> tippen → Website-Einstellungen → Kamera &amp; Standort auf <b>Erlauben</b>.">Tired of permission prompts? In Safari tap <b>aA</b> → Website Settings → set Camera &amp; Location to <b>Allow</b>.</p>
+    </div>
   </details>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a> <span class="credit ver" style="display:inline"></span>
@@ -72,7 +84,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.8 · 29.10.2026";
+const VERSION = "v1.9 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -111,7 +123,15 @@ const setObst = v => { obst = Math.max(0, Math.min(40, Math.round(v))); $('obst'
   $('obstv').textContent = obst + '°'; set('moonObst', obst) };
 setObst(obst);
 $('obst').oninput = e => setObst(+e.target.value);
-$('setObst').onclick = () => view && setObst(view.alt);
+// Measuring: user aims the centre circle at the top of the buildings, then confirms
+let measuring = false;
+$('setObst').onclick = () => {
+  if (!view) return alert(tr('Needs motion sensors – allow access and reload.', 'Braucht Bewegungssensoren – Zugriff erlauben und neu laden.'));
+  measuring = true;
+  document.querySelector('details').open = false;
+  $('measureOk').style.display = 'block';
+};
+$('measureOk').onclick = () => { setObst(view.alt); measuring = false; $('measureOk').style.display = 'none' };
 
 // Cloud forecast (Open-Meteo, no key). Coordinates rounded to ~10 km before leaving the device.
 let clouds = null;
@@ -151,6 +171,14 @@ function locate() {
   }, () => { denied.add(tr('location', 'Standort')); showPerm(); $('locate').textContent = tr('Update location', 'Standort aktualisieren') }, {enableHighAccuracy: true});
 }
 $('locate').onclick = locate;
+
+$('reset').onclick = () => {
+  if (!confirm(tr('Reset all settings to defaults?', 'Alle Einstellungen zurücksetzen?'))) return;
+  offset = 0; $('offset').value = 0; $('offv').textContent = '0°'; set('moonOffset', 0);
+  stab = 80; $('stab').value = 80; set('moonStab', 80);
+  setObst(10);
+  $('camOn').checked = true; set('moonCam', '1'); setCam(true);
+};
 
 $('goDark').onclick = () => { $('camOn').checked = false; set('moonCam', '0'); start() };
 $('go').onclick = () => { $('camOn').checked = true; set('moonCam', '1'); start() };
@@ -250,6 +278,9 @@ function loop() {
            `Schau nach ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° über dem Horizont`);
     return;
   }
+  if (measuring) {
+    $('measureOk').textContent = tr(`✓ Use this height (${Math.max(0, Math.round(view.alt))}°)`, `✓ Diese Höhe übernehmen (${Math.max(0, Math.round(view.alt))}°)`);
+  }
   const vfov = 60, hfov = vfov * W / H; // ponytail: fixed FOV guess, portrait only, roll ignored
   const dAz = wrap(az - view.az - offset), dAlt = alt - view.alt;
 
@@ -311,6 +342,9 @@ function loop() {
     $('hint').textContent = tr('Turn ', 'Dreh nach ') + [lr, ud].filter(Boolean).join(tr(' and ', ' und ')) +
       (vis ? ' · ' + visIn : '');
   }
+  if (measuring) $('hint').textContent = tr(
+    `📐 Face ${compass(az)} (the moon's direction) and put the centre circle on the top edge of the roofs/trees, then tap ✓`,
+    `📐 Richtung ${compass(az)} (Mondrichtung) drehen, den Kreis in der Mitte auf die Oberkante der Dächer/Bäume legen, dann ✓ tippen`);
 }
 </script>
 </body>
