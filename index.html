@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0b1e">
+<meta name="description" content="Find the moon for Karwa Chauth – AR view, moonrise time and the moon's path tonight.">
+<meta property="og:title" content="Moon Tracker – Karwa Chauth 🌙">
 <title>Moon Tracker – Karwa Chauth</title>
 <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
 <style>
@@ -45,32 +47,36 @@
   <div id="info"></div>
   <div id="perm"></div>
   <details>
-    <summary>Settings</summary>
-    <label><input id="camOn" type="checkbox"> Camera view (off = dark sky)</label>
-    <label>Stabilization <input id="stab" type="range" min="0" max="100" value="80"></label>
-    <label>Compass correction <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
-    <button id="locate" style="font-size:13px;padding:6px 14px;margin:6px 0">Update location</button>
-    <div style="font-size:12px;opacity:.7">Tired of permission prompts? In Safari tap <b>aA</b> → Website Settings → set Camera &amp; Location to <b>Allow</b>.</div>
+    <summary data-de="Einstellungen">Settings</summary>
+    <label><input id="camOn" type="checkbox"> <span data-de="Kameraansicht (aus = dunkler Himmel)">Camera view (off = dark sky)</span></label>
+    <label><span data-de="Stabilisierung">Stabilization</span> <input id="stab" type="range" min="0" max="100" value="80"></label>
+    <label><span data-de="Kompass-Korrektur">Compass correction</span> <input id="offset" type="range" min="-180" max="180" value="0"> <span id="offv">0°</span></label>
+    <button id="locate" style="font-size:13px;padding:6px 14px;margin:6px 0" data-de="Standort aktualisieren">Update location</button>
+    <div style="font-size:12px;opacity:.7" data-de="Nervige Abfragen? In Safari auf <b>aA</b> tippen → Website-Einstellungen → Kamera &amp; Standort auf <b>Erlauben</b>.">Tired of permission prompts? In Safari tap <b>aA</b> → Website Settings → set Camera &amp; Location to <b>Allow</b>.</div>
   </details>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
-    <button id="share" style="font-size:13px;padding:6px 14px;margin-top:6px">Share moonrise</button>
+    <button id="share" style="font-size:13px;padding:6px 14px;margin-top:6px" data-de="Mondaufgang teilen">Share moonrise</button>
   </div>
 </div>
 <div id="start">
   <div style="font-size:72px">🌕</div>
   <h1>Moon Tracker 🪔</h1>
-  <p>Karwa Chauth – find the moon to break your fast.<br>Point your phone at the sky.</p>
-  <p style="font-size:14px;opacity:.75">On the next step your phone will ask for access to<br>📍 Location · 📷 Camera · 🧭 Motion &amp; orientation</p>
-  <button id="go">Find the moon</button>
-  <button id="goDark" style="background:none;color:#ffe9a8;border:1px solid #ffe9a8;font-size:15px;padding:10px 22px">Without camera</button>
+  <p data-de="Karwa Chauth – finde den Mond, um dein Fasten zu brechen.<br>Richte dein Handy zum Himmel.">Karwa Chauth – find the moon to break your fast.<br>Point your phone at the sky.</p>
+  <p style="font-size:14px;opacity:.75" data-de="Im nächsten Schritt fragt dein Handy nach Zugriff auf<br>📍 Standort · 📷 Kamera · 🧭 Bewegung &amp; Ausrichtung">On the next step your phone will ask for access to<br>📍 Location · 📷 Camera · 🧭 Motion &amp; orientation</p>
+  <button id="go" data-de="Mond finden">Find the moon</button>
+  <button id="goDark" style="background:none;color:#ffe9a8;border:1px solid #ffe9a8;font-size:15px;padding:10px 22px" data-de="Ohne Kamera">Without camera</button>
   <a class="credit" href="https://app.goswami.de" target="_blank" rel="noopener">Made by SG Studio</a>
 </div>
 <script>
 const $ = id => document.getElementById(id);
+// German if the device language is German, English otherwise
+const DE = /^de\b/i.test(navigator.language || '');
+const tr = (en, de) => DE ? de : en;
+if (DE) { document.documentElement.lang = 'de'; document.querySelectorAll('[data-de]').forEach(el => el.innerHTML = el.dataset.de); }
 const deg = r => r * 180 / Math.PI, rad = d => d * Math.PI / 180;
 const wrap = a => ((a + 540) % 360) - 180; // -> [-180,180)
-const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+const dirs = DE ? ['N','NO','O','SO','S','SW','W','NW'] : ['N','NE','E','SE','S','SW','W','NW'];
 const compass = az => dirs[Math.round(az / 45) % 8];
 const fmt = d => d ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '–';
 
@@ -81,7 +87,8 @@ const moonAt = d => { // suncalc azimuth is from south; convert to compass beari
 };
 const denied = new Set();
 const showPerm = () => $('perm').textContent = denied.size
-  ? `No access to: ${[...denied].join(', ')} – allow it in your browser/site settings and reload.` : '';
+  ? tr(`No access to: ${[...denied].join(', ')} – allow it in your browser/site settings and reload.`,
+      `Kein Zugriff auf: ${[...denied].join(', ')} – in den Browser-/Website-Einstellungen erlauben und neu laden.`) : '';
 
 // Settings survive reloads (per device)
 const get = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } };
@@ -102,16 +109,16 @@ function setCam(on) {
   if (old) return;
   navigator.mediaDevices?.getUserMedia({video: {facingMode: 'environment'}})
     .then(s => $('cam').srcObject = s)
-    .catch(() => { denied.add('camera'); showPerm(); document.body.classList.remove('cam') });
+    .catch(() => { denied.add(tr('camera', 'Kamera')); showPerm(); document.body.classList.remove('cam') });
 }
 
 function locate() {
-  $('locate').textContent = 'Locating…';
+  $('locate').textContent = tr('Locating…', 'Suche Standort…');
   navigator.geolocation.getCurrentPosition(p => {
     pos = {latitude: p.coords.latitude, longitude: p.coords.longitude};
     set('moonPos', JSON.stringify(pos)); pathAt = 0;
-    $('locate').textContent = 'Update location';
-  }, () => { denied.add('location'); showPerm(); $('locate').textContent = 'Update location' }, {enableHighAccuracy: true});
+    $('locate').textContent = tr('Update location', 'Standort aktualisieren');
+  }, () => { denied.add(tr('location', 'Standort')); showPerm(); $('locate').textContent = tr('Update location', 'Standort aktualisieren') }, {enableHighAccuracy: true});
 }
 $('locate').onclick = locate;
 
@@ -124,7 +131,7 @@ function start() {
   const motion = window.DeviceOrientationEvent?.requestPermission
     ? DeviceOrientationEvent.requestPermission().catch(() => 'denied') : Promise.resolve('granted');
   motion.then(s => {
-    if (s !== 'granted') { denied.add('motion sensors'); showPerm(); return; }
+    if (s !== 'granted') { denied.add(tr('motion sensors', 'Bewegungssensoren')); showPerm(); return; }
     addEventListener('deviceorientationabsolute', onOrient);
     addEventListener('deviceorientation', onOrient);
   });
@@ -146,7 +153,7 @@ let shareText = '';
 $('share').onclick = () => {
   const data = {title: 'Moon Tracker', text: shareText, url: location.href};
   if (navigator.share) navigator.share(data).catch(() => {});
-  else navigator.clipboard?.writeText(`${shareText} ${location.href}`).then(() => $('share').textContent = 'Copied!');
+  else navigator.clipboard?.writeText(`${shareText} ${location.href}`).then(() => $('share').textContent = tr('Copied!', 'Kopiert!'));
 };
 const until = d => { const m = Math.round((d - Date.now()) / 60000);
   return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min` };
@@ -172,7 +179,7 @@ function onOrient(e) {
 
 function loop() {
   requestAnimationFrame(loop);
-  if (!pos) { $('hint').textContent = denied.has('location') ? 'Location needed to find the moon' : 'Finding your location…'; return; }
+  if (!pos) { $('hint').textContent = denied.has(tr('location', 'Standort')) ? tr('Location needed to find the moon', 'Standort wird benötigt') : tr('Finding your location…', 'Suche Standort…'); return; }
   const now = new Date();
   const {az, alt} = moonAt(now);
   if (now - pathAt > 60000) { // next 12 h in 10-min steps, refreshed every minute
@@ -185,15 +192,16 @@ function loop() {
   const ill = SunCalc.getMoonIllumination(now);
   const t = SunCalc.getMoonTimes(now, pos.latitude, pos.longitude);
   const risesSoon = alt < 0 && t.rise > now;
-  shareText = `🌙 Karwa Chauth: moonrise here today at ${fmt(t.rise)}` +
-    (clear ? `, above the rooftops ~${fmt(clear.t)}` : '') + '. Find it with Moon Tracker:';
+  shareText = tr(`🌙 Karwa Chauth: moonrise here today at ${fmt(t.rise)}`, `🌙 Karwa Chauth: Mondaufgang heute hier um ${fmt(t.rise)}`) +
+    (clear ? tr(`, above the rooftops ~${fmt(clear.t)}`, `, über den Dächern ~${fmt(clear.t)}`) : '') +
+    tr('. Find it with Moon Tracker:', '. Finde ihn mit Moon Tracker:');
   const phase =['🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘'][Math.round(ill.phase * 8) % 8];
   $('moon').textContent = phase;
   $('info').innerHTML =
-    `Direction <b>${az.toFixed(0)}° ${compass(az)}</b> · Altitude <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% lit<br>` +
-    `Moonrise <b>${fmt(t.rise)}</b> · Moonset ${fmt(t.set)}<br>` +
-    (clear ? `Above rooftops (10°) ~<b>${fmt(clear.t)}</b> · ` : '') +
-    `Highest ~${fmt(peak.t)} at ${peak.alt.toFixed(0)}° ${compass(peak.az)}`;
+    `${tr('Direction', 'Richtung')} <b>${az.toFixed(0)}° ${compass(az)}</b> · ${tr('Altitude', 'Höhe')} <b>${alt.toFixed(0)}°</b> · ${Math.round(ill.fraction * 100)}% ${tr('lit', 'beleuchtet')}<br>` +
+    `${tr('Moonrise', 'Mondaufgang')} <b>${fmt(t.rise)}</b> · ${tr('Moonset', 'Untergang')} ${fmt(t.set)}<br>` +
+    (clear ? `${tr('Above rooftops', 'Über den Dächern')} (10°) ~<b>${fmt(clear.t)}</b> · ` : '') +
+    `${tr('Highest', 'Höchster Stand')} ~${fmt(peak.t)} ${tr('at', 'bei')} ${peak.alt.toFixed(0)}° ${compass(peak.az)}`;
 
   const W = innerWidth, H = innerHeight, sky = $('sky'), ctx = sky.getContext('2d'), dpr = devicePixelRatio;
   if (sky.width !== W * dpr || sky.height !== H * dpr) { sky.width = W * dpr; sky.height = H * dpr; }
@@ -202,9 +210,10 @@ function loop() {
 
   if (!hasSensor || !view) {
     $('moon').style.display = $('ring').style.display = $('arrow').style.display = 'none';
-    $('hint').textContent = risesSoon ? `Moonrise in ${until(t.rise)} (${fmt(t.rise)})`
-      : alt < 0 ? 'Moon is below the horizon'
-      : `Look ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° above the horizon`;
+    $('hint').textContent = risesSoon ? tr(`Moonrise in ${until(t.rise)} (${fmt(t.rise)})`, `Mondaufgang in ${until(t.rise)} (${fmt(t.rise)})`)
+      : alt < 0 ? tr('Moon is below the horizon', 'Mond ist unter dem Horizont')
+      : tr(`Look ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° above the horizon`,
+           `Schau nach ${compass(az)} (${az.toFixed(0)}°), ${alt.toFixed(0)}° über dem Horizont`);
     return;
   }
   const vfov = 60, hfov = vfov * W / H; // ponytail: fixed FOV guess, portrait only, roll ignored
@@ -240,18 +249,19 @@ function loop() {
   $('arrow').style.display = onScreen ? 'none' : 'block';
   if (onScreen) {
     for (const el of [$('moon'), $('ring')]) { el.style.left = sx + 'px'; el.style.top = sy + 'px'; }
-    $('hint').textContent = risesSoon ? `Moon is here – rises in ${until(t.rise)}`
-      : alt < 0 ? 'The moon is here – but below the horizon 🌍' :'There is the moon! 🌙 Happy Karwa Chauth';
+    $('hint').textContent = risesSoon ? tr(`Moon is here – rises in ${until(t.rise)}`, `Hier ist der Mond – Aufgang in ${until(t.rise)}`)
+      : alt < 0 ? tr('The moon is here – but below the horizon 🌍', 'Hier ist der Mond – aber unter dem Horizont 🌍')
+      : tr('There is the moon! 🌙 Happy Karwa Chauth', 'Da ist der Mond! 🌙 Frohes Karwa Chauth');
   } else {
     const ang = Math.atan2(-dAlt, dAz); // screen angle toward moon
     const r = Math.min(W, H) * 0.38;
     $('arrow').style.left = W / 2 + Math.cos(ang) * r + 'px';
     $('arrow').style.top = H / 2 + Math.sin(ang) * r + 'px';
     $('arrow').style.transform = `translate(-50%,-50%) rotate(${ang}rad)`;
-    const lr = Math.abs(dAz) > 10 ? (dAz > 0 ? 'right' : 'left') : '';
-    const ud = Math.abs(dAlt) > 10 ? (dAlt > 0 ? 'up' : 'down') : '';
-    $('hint').textContent = 'Turn ' + [lr, ud].filter(Boolean).join(' and ') +
-      (risesSoon ? ` · rises in ${until(t.rise)}` : '');
+    const lr = Math.abs(dAz) > 10 ? (dAz > 0 ? tr('right', 'rechts') : tr('left', 'links')) : '';
+    const ud = Math.abs(dAlt) > 10 ? (dAlt > 0 ? tr('up', 'oben') : tr('down', 'unten')) : '';
+    $('hint').textContent = tr('Turn ', 'Dreh nach ') + [lr, ud].filter(Boolean).join(tr(' and ', ' und ')) +
+      (risesSoon ? tr(` · rises in ${until(t.rise)}`, ` · Aufgang in ${until(t.rise)}`) : '');
   }
 }
 </script>
