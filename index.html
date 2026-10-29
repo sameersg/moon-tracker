@@ -38,6 +38,15 @@
   body:not(.cam) #cam{display:none}
   body:not(.cam){background:radial-gradient(ellipse at 50% 120%,#1d1d44,#05050f 70%)}
   .credit{display:block;font-size:12px;color:#ffe9a8;opacity:.7;text-decoration:none;margin-top:6px}
+  #helpBtn{position:fixed;top:calc(12px + env(safe-area-inset-top));right:12px;z-index:20;width:40px;height:40px;
+           padding:0;border-radius:50%;font-size:20px;background:#000a;color:#ffe9a8;border:1px solid #ffe9a855}
+  dialog{width:calc(100% - 32px);max-width:520px;max-height:85vh;overflow-y:auto;background:#15152e;color:#fff;
+         border:1px solid #ffe9a844;border-radius:16px;padding:16px;font-size:14px;line-height:1.5}
+  dialog::backdrop{background:#000a}
+  dialog h2{margin:0 0 8px;font-size:20px} dialog h3{margin:16px 0 4px;font-size:15px;color:#ffe9a8}
+  dialog ol,dialog ul{padding-left:20px;margin:4px 0}
+  dialog input{font-size:16px;padding:8px 10px;border-radius:8px;border:0;flex:1;min-width:0}
+  html[lang=de] .en, html:not([lang=de]) .de, body.ios .android, body.android .ios{display:none}
 </style>
 </head>
 <body>
@@ -75,6 +84,72 @@
     <button id="share" style="font-size:13px;padding:6px 14px;margin-top:6px" data-de="Mondaufgang teilen">Share moonrise</button>
   </div>
 </div>
+<button id="helpBtn" aria-label="Help / Hilfe">?</button>
+<dialog id="help">
+  <h2><span class="en">Help</span><span class="de">Hilfe</span></h2>
+
+  <div class="en">
+    <ol>
+      <li>Tap <b>Find the moon</b> and allow location, camera and motion.</li>
+      <li>Hold the phone upright and follow the arrow until the moon appears in the ring.</li>
+      <li>The dashed line is the moon's path tonight with times. <b>👁</b> marks when it rises above the rooftops.</li>
+    </ol>
+  </div>
+  <div class="de">
+    <ol>
+      <li>Auf <b>Mond finden</b> tippen und Standort, Kamera und Bewegung erlauben.</li>
+      <li>Handy aufrecht halten und dem Pfeil folgen, bis der Mond im Ring erscheint.</li>
+      <li>Die gestrichelte Linie ist die Bahn des Mondes heute Nacht mit Uhrzeiten. <b>👁</b> zeigt, ab wann er über den Dächern ist.</li>
+    </ol>
+  </div>
+
+  <h3 class="en">📍 No location access? Enter your city</h3>
+  <h3 class="de">📍 Kein Standort? Stadt eingeben</h3>
+  <form id="cityForm" style="display:flex;gap:8px">
+    <input id="city" placeholder="Hamburg" autocomplete="address-level2">
+    <button style="font-size:14px;padding:8px 14px"><span class="en">Use</span><span class="de">Übernehmen</span></button>
+  </form>
+  <div id="cityMsg" style="font-size:12px;opacity:.75;margin-top:4px"></div>
+
+  <h3 class="ios"><span class="en">iPhone: location doesn't work</span><span class="de">iPhone: Standort geht nicht</span></h3>
+  <div class="ios en"><ul>
+    <li><b>Settings → Privacy &amp; Security → Location Services</b>: turn on.</li>
+    <li>Same list → <b>Safari Websites</b> → “While Using the App”, and turn on <b>Precise Location</b>.</li>
+    <li>In Safari tap <b>aA</b> in the address bar → <b>Website Settings</b> → Location → <b>Allow</b>. Then reload.</li>
+  </ul></div>
+  <div class="ios de"><ul>
+    <li><b>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</b>: einschalten.</li>
+    <li>In derselben Liste → <b>Safari-Websites</b> → „Beim Verwenden der App“ und <b>Genauer Standort</b> an.</li>
+    <li>In Safari in der Adressleiste auf <b>aA</b> → <b>Website-Einstellungen</b> → Standort → <b>Erlauben</b>. Dann neu laden.</li>
+  </ul></div>
+  <h3 class="ios"><span class="en">iPhone: camera or moon doesn't move</span><span class="de">iPhone: Kamera oder Mond bewegt sich nicht</span></h3>
+  <div class="ios en"><ul>
+    <li>Camera: <b>aA → Website Settings → Camera → Allow</b>, or <b>Settings → Apps → Safari → Camera</b>.</li>
+    <li>Moon doesn't follow the phone: reload, tap <b>Find the moon</b> and choose <b>Allow</b> for motion. If you tapped Cancel, close the tab completely and open the link again.</li>
+  </ul></div>
+  <div class="ios de"><ul>
+    <li>Kamera: <b>aA → Website-Einstellungen → Kamera → Erlauben</b> oder <b>Einstellungen → Apps → Safari → Kamera</b>.</li>
+    <li>Mond folgt dem Handy nicht: neu laden, <b>Mond finden</b> tippen und bei Bewegung <b>Erlauben</b> wählen. Falls „Abbrechen“ getippt: Tab ganz schließen und Link neu öffnen.</li>
+  </ul></div>
+
+  <h3 class="android"><span class="en">Android: location, camera or sensors don't work</span><span class="de">Android: Standort, Kamera oder Sensoren gehen nicht</span></h3>
+  <div class="android en"><ul>
+    <li>Turn on <b>Location</b> in the quick settings (swipe down from the top).</li>
+    <li><b>Settings → Apps → Chrome → Permissions</b> → Location and Camera → <b>Allow</b>.</li>
+    <li>In Chrome tap the icon left of the address → <b>Permissions</b> / Site settings → Location, Camera, Motion sensors → <b>Allow</b>. Then reload.</li>
+  </ul></div>
+  <div class="android de"><ul>
+    <li><b>Standort</b> in den Schnelleinstellungen einschalten (von oben wischen).</li>
+    <li><b>Einstellungen → Apps → Chrome → Berechtigungen</b> → Standort und Kamera → <b>Zulassen</b>.</li>
+    <li>In Chrome auf das Symbol links neben der Adresse → <b>Berechtigungen</b> / Website-Einstellungen → Standort, Kamera, Bewegungssensoren → <b>Zulassen</b>. Dann neu laden.</li>
+  </ul></div>
+
+  <h3><span class="en">Moon in the wrong place?</span><span class="de">Mond an der falschen Stelle?</span></h3>
+  <p class="en" style="margin:0">Phone compasses drift. Move the phone in a figure-8 a few times, stay away from metal, then fine-tune with <b>Compass correction</b> in Settings.</p>
+  <p class="de" style="margin:0">Handy-Kompasse driften. Handy ein paar Mal in einer Acht bewegen, Abstand zu Metall halten, dann in den Einstellungen mit <b>Kompass-Korrektur</b> nachjustieren.</p>
+
+  <form method="dialog" style="margin-top:16px;text-align:right"><button style="font-size:15px;padding:10px 22px">OK</button></form>
+</dialog>
 <div id="start">
   <div style="font-size:72px">🌕</div>
   <h1>Moon Tracker 🪔</h1>
@@ -86,7 +161,7 @@
 </div>
 <script>
 // Bump on every deploy so testers can tell which build they have
-const VERSION = "v1.11 · 29.10.2026";
+const VERSION = "v1.12 · 29.10.2026";
 const $ = id => document.getElementById(id);
 document.querySelectorAll(".ver").forEach(el => el.textContent = VERSION);
 // German if the device language is German, English otherwise
@@ -105,9 +180,38 @@ const moonAt = d => { // suncalc azimuth is from south; convert to compass beari
   return {t: d, az: (deg(m.azimuth) + 180) % 360, alt: deg(m.altitude)};
 };
 const denied = new Set();
-const showPerm = () => $('perm').textContent = denied.size
-  ? tr(`No access to: ${[...denied].join(', ')} – allow it in your browser/site settings and reload.`,
-      `Kein Zugriff auf: ${[...denied].join(', ')} – in den Browser-/Website-Einstellungen erlauben und neu laden.`) : '';
+const showPerm = () => $('perm').innerHTML = denied.size
+  ? tr(`No access to: ${[...denied].join(', ')}. `, `Kein Zugriff auf: ${[...denied].join(', ')}. `) +
+    `<button class="small" style="margin:4px 0">${tr('How to fix', 'So geht’s')}</button>` : '';
+$('perm').onclick = e => e.target.tagName === 'BUTTON' && openHelp();
+
+// Help: show only the steps for this phone's platform
+const UA = navigator.userAgent;
+if (/iP(hone|ad|od)/.test(UA) || (/Mac/.test(UA) && navigator.maxTouchPoints > 1)) document.body.classList.add('ios');
+else if (/Android/.test(UA)) document.body.classList.add('android');
+const openHelp = () => $('help').showModal();
+$('helpBtn').onclick = openHelp;
+
+// Manual location fallback via Open-Meteo geocoding (no key); city level is plenty for the moon
+$('cityForm').onsubmit = e => {
+  e.preventDefault();
+  const q = $('city').value.trim();
+  if (!q) return;
+  $('cityMsg').textContent = '…';
+  fetch(`https://geocoding-api.open-meteo.com/v1/search?count=1&language=${DE ? 'de' : 'en'}&name=${encodeURIComponent(q)}`)
+    .then(r => r.json()).then(d => {
+      const c = d.results?.[0];
+      if (!c) return $('cityMsg').textContent = tr('City not found.', 'Stadt nicht gefunden.');
+      usePos({latitude: c.latitude, longitude: c.longitude});
+      $('cityMsg').textContent = '✓ ' + [c.name, c.admin1, c.country].filter(Boolean).join(', ');
+      denied.delete(tr('location', 'Standort')); showPerm();
+      setTimeout(() => $('help').close(), 800);
+    }).catch(() => $('cityMsg').textContent = tr('No connection.', 'Keine Verbindung.'));
+};
+function usePos(p) {
+  pos = p; set('moonPos', JSON.stringify(pos));
+  pathAt = 0; clouds = null; loadClouds.started = false;
+}
 
 // Settings survive reloads (per device)
 const get = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } };
@@ -167,10 +271,12 @@ function setCam(on) {
 function locate() {
   $('locate').textContent = tr('Locating…', 'Suche Standort…');
   navigator.geolocation.getCurrentPosition(p => {
-    pos = {latitude: p.coords.latitude, longitude: p.coords.longitude};
-    set('moonPos', JSON.stringify(pos)); pathAt = 0;
+    usePos({latitude: p.coords.latitude, longitude: p.coords.longitude});
     $('locate').textContent = tr('Update location', 'Standort aktualisieren');
-  }, () => { denied.add(tr('location', 'Standort')); showPerm(); $('locate').textContent = tr('Update location', 'Standort aktualisieren') }, {enableHighAccuracy: true});
+  }, () => {
+    denied.add(tr('location', 'Standort')); showPerm();
+    if (!pos) openHelp(); // the app can't work without a location, so offer the fix right away
+    $('locate').textContent = tr('Update location', 'Standort aktualisieren') }, {enableHighAccuracy: true});
 }
 $('locate').onclick = locate;
 
